@@ -43,6 +43,7 @@
   let absentSince = 0;
   let lastSentSignature = '';
   let currentSignature = '';
+  let tickCount = 0;
 
   // If the identical notice text shows up again this quickly after a send, it
   // is the same occurrence re-rendering, not a new limit — the agent cannot
@@ -94,28 +95,51 @@
 
   /* ------------------------------------------------------------- detection */
 
-  function findLimitNotice() {
-    if (!document.body) return null;
-    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
-      acceptNode(node) {
-        const t = node.nodeValue;
-        if (!t || t.length < 12) return NodeFilter.FILTER_REJECT;
-        if (RE_LIMIT.test(t) || RE_CONTINUE.test(t)) return NodeFilter.FILTER_ACCEPT;
-        return NodeFilter.FILTER_REJECT;
-      }
-    });
+  const SKIP_TAGS = new Set(['SCRIPT', 'STYLE', 'NOSCRIPT', 'TEMPLATE']);
 
-    let node;
+  /**
+   * Walk text nodes in reverse document order and call visit(node) on each.
+   * Stops (and returns true) as soon as visit returns true.
+   * The notice is always the newest thing on the page, so starting from the
+   * end means we usually find it in a handful of steps even in long chats.
+   */
+  function scanTextReverse(root, visit, maxNodes = 800) {
+    const stack = [root];
+    let visited = 0;
+    while (stack.length && visited < maxNodes) {
+      const node = stack.pop();
+      if (node.nodeType === Node.TEXT_NODE) {
+        visited++;
+        if (visit(node) === true) return true;
+        continue;
+      }
+      if (node.nodeType !== Node.ELEMENT_NODE && node.nodeType !== Node.DOCUMENT_FRAGMENT_NODE) continue;
+      if (SKIP_TAGS.has(node.nodeName)) continue;
+      const kids = node.childNodes;
+      // push in document order so pop() returns the LAST child first
+      for (let i = 0; i < kids.length; i++) stack.push(kids[i]);
+    }
+    return false;
+  }
+
+  /** Is the "tool-call limit" notice present in the DOM right now? */
+  function findLimitNotice(deep = false) {
+    if (!document.body) return null;
+    let exact = null;
     let continuationOnly = null;
-    while ((node = walker.nextNode())) {
+    scanTextReverse(document.body, (node) => {
       const text = node.nodeValue;
-      if (RE_LIMIT.test(text)) return node.parentElement;
+      if (!text || text.length < 12) return false;
+      if (RE_LIMIT.test(text)) { exact = node.parentElement; return true; }
       if (!continuationOnly && RE_CONTINUE.test(text)) {
+        // "Send a message to continue…" alone is too generic — only accept it
+        // when the surrounding block really is the limit notice.
         const around = (node.parentElement && node.parentElement.textContent) || '';
         if (RE_LIMIT.test(around)) continuationOnly = node.parentElement;
       }
-    }
-    return continuationOnly;
+      return false;
+    }, deep ? 6000 : 800);
+    return exact || continuationOnly;
   }
 
   /** Notice text signature, so one occurrence can only trigger once. */
@@ -307,7 +331,9 @@
     if (!settings.enabled || stopped) { renderIndicator(); return; }
     if (!onAgentPage()) return;
 
-    const notice = findLimitNotice();
+    tickCount += 1;
+    // Cheap tail scan every tick; a full scan now and then for very long chats.
+    const notice = findLimitNotice(tickCount % 12 === 0);
     if (!notice) {
       // Notice is gone → the turn moved on; re-arm for a future limit.
       // Re-arming is based on *observations* rather than wall-clock time:
@@ -402,7 +428,7 @@
     observer = new MutationObserver(() => queueTick(200));
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     // Fallback poll: some frameworks update text without mutations we catch.
-    setInterval(() => queueTick(0), 200);
+    setInterval(() => queueTick(0), 700);
 
     // Anything the user does manually resets the safety cap.
     const userReset = (e) => {
