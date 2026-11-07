@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Arena Agent Auto-Continue</title>
+<meta name="description" content="A small browser extension for arena.ai/agent that sends the word continue when the agent reaches its tool-call limit for the turn, then waits for the next one." />
+<meta name="theme-color" content="#e9e6df" />
+<meta property="og:title" content="Arena Agent Auto-Continue" />
+<meta property="og:description" content="Sends one word when the agent hits its tool-call limit, so long builds keep running." />
+<meta property="og:type" content="website" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <rect x="0" y="0" width="32" height="32" rx="9" fill="#2a5f63"/>
+        <path d="M12 9.5 L19 16 L12 22.5" fill="none" stroke="#f4f1ea" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M20 9.5 L27 16 L20 22.5" fill="none" stroke="#f4f1ea" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.45"/>
+      </svg>
+      Arena Agent Auto-Continue
+    </a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="#how">How it works</a>
+      <a href="#install">Install</a>
+      <a href="#questions">Questions</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <section class="hero">
+    <div class="wrap">
+      <div>
+        <h1>Long agent runs should not end on a formality.</h1>
+        <p class="lede">
+          Arena's agent stops when it reaches its tool-call limit for the turn. It is waiting for one
+          word. This extension types it for you, once per banner, and then leaves the page alone.
+        </p>
+        <div class="hero-actions">
+          <a class="btn btn-primary" href="https://github.com/sarang-cmd/arena-agent-auto-continue/releases/latest">Download the extension</a>
+          <a class="btn btn-ghost" href="#how">See what it matches</a>
+        </div>
+        <p class="hero-note">
+          Chrome, Edge and Brave on desktop. Installed unpacked from the release zip. No account, no server, no permissions beyond arena.ai.
+        </p>
+      </div>
+
+      <div class="plate">
+        <div class="plate-label">
+          <strong>Simulated console</strong>
+          <span id="consoleState" aria-live="polite">waiting</span>
+        </div>
+
+        <div class="well" id="console">
+          <div class="line">agent: reading the build output</div>
+
+          <div class="notice" id="notice">
+            <span class="tag">Tool-call limit</span>
+            The agent reached the tool-call limit for this turn. Send a message to continue where it left off.
+          </div>
+
+          <div class="composer">
+            <div class="field empty" id="field" aria-hidden="true"><span class="caret"></span></div>
+            <button class="send-btn" id="send" type="button" aria-label="Send the message in the simulated console">
+              <svg width="15" height="15" viewBox="0 0 16 16" aria-hidden="true" focusable="false">
+                <path d="M2 8h10M8.5 3.5 13 8l-4.5 4.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="switch-row">
+          <label for="autoToggle" style="cursor:pointer">Auto-continue</label>
+          <span class="switch">
+            <input type="checkbox" id="autoToggle" checked />
+            <span class="track" aria-hidden="true"></span>
+          </span>
+        </div>
+        <p class="small muted mt-8" id="switchStatus">On. One message per banner, then it waits.</p>
+        <p class="small mt-16">
+          <button class="btn" id="runDemo" type="button" style="font-size:13.5px;padding:9px 15px">Show the limit being reached</button>
+        </p>
+        <p class="small muted mt-8">This panel is a simulation. The banner wording is the same text the extension matches on arena.ai.</p>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule" />
+
+  <section class="section" id="how">
+    <div class="wrap split">
+      <div>
+        <h2>It reads one banner, not your conversation.</h2>
+        <p class="lede">
+          The extension looks for a single sentence near the end of the page. When that sentence
+          appears, it writes <span class="inline-code">continue</span> into the message box and sends it.
+        </p>
+      </div>
+      <div>
+        <dl class="rules">
+          <div>
+            <dt>the exact line</dt>
+            <dd>The agent reached the tool-call <strong>limit</strong> for this turn. Send a message to <strong>continue</strong> where it left off.</dd>
+          </div>
+          <div>
+            <dt>where it looks</dt>
+            <dd>Text nodes from the bottom of the page upward, stopping at the first match. A long conversation costs a few milliseconds, not a full scan.</dd>
+          </div>
+          <div>
+            <dt>what it ignores</dt>
+            <dd>The line "send a message to continue" on its own is not enough. The words about the tool-call limit have to be present too, so ordinary chat text cannot trigger it.</dd>
+          </div>
+          <div>
+            <dt>how it sends</dt>
+            <dd>It fills the composer with a real input event and clicks the send button next to it. If there is no button, it presses Enter. Both paths are tested.</dd>
+          </div>
+          <div>
+            <dt>when it stops</dt>
+            <dd>After one send it disarms until the banner has been gone for a moment. A re-render that flickers the same banner will not produce a second message.</dd>
+          </div>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule" />
+
+  <section class="section" id="safety">
+    <div class="wrap">
+      <div class="safety-intro">
+        <h2>Defaults that assume you are not watching.</h2>
+        <p class="lede">
+          Everything below is a setting in the popup. These are the values it ships with, and why each
+          one is there.
+        </p>
+        <p class="muted small">
+          Open the toolbar icon on any arena.ai page to change a value or stop it entirely.
+        </p>
+      </div>
+
+      <div class="table-plate">
+        <table class="settings">
+          <thead>
+            <tr>
+              <th scope="col">Setting</th>
+              <th scope="col">Default</th>
+              <th scope="col">Why it is set that way</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="name">Delay before sending</td>
+              <td><code>1200 ms</code></td>
+              <td>Lets the page finish rendering the banner, so the composer is ready to take text.</td>
+            </tr>
+            <tr>
+              <td class="name">Skip if the composer has text</td>
+              <td><code>on</code></td>
+              <td>If you already typed something, your draft wins. It never overwrites what you wrote.</td>
+            </tr>
+            <tr>
+              <td class="name">Only when the tab is visible</td>
+              <td><code>on</code></td>
+              <td>Stops two background tabs from both answering the same agent.</td>
+            </tr>
+            <tr>
+              <td class="name">Safety cap</td>
+              <td><code>30 sends</code></td>
+              <td>A ceiling for unattended runs. Hitting it pauses the extension until you reset the counter.</td>
+            </tr>
+            <tr>
+              <td class="name">Message</td>
+              <td><code>continue</code></td>
+              <td>Any short message works. Extra instructions are a bad idea, since the agent reads this mid-task.</td>
+            </tr>
+            <tr>
+              <td class="name">Repeat guard</td>
+              <td><code>6 s</code></td>
+              <td>The same banner cannot trigger another message inside this window. An agent cannot spend a whole tool budget in six seconds.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <hr class="rule" />
+
+  <section class="section" id="install">
+    <div class="wrap">
+      <h2 class="prose">Install it in about a minute.</h2>
+      <p class="lede mt-16" style="max-width:60ch">
+        The extension is not in the Chrome Web Store. You load the packed release folder yourself,
+        which also means you can read every line of it first.
+      </p>
+
+      <ol class="steps mt-32">
+        <li>
+          <h3>Download the latest release</h3>
+          <p>Grab <span class="inline-code">arena-auto-continue.zip</span> from the
+            <a href="https://github.com/sarang-cmd/arena-agent-auto-continue/releases/latest">releases page</a>
+            and unzip it somewhere you will keep it.</p>
+        </li>
+        <li>
+          <h3>Open your extensions page</h3>
+          <p>Go to <span class="inline-code">chrome://extensions</span>. In Edge it is
+            <span class="inline-code">edge://extensions</span>, in Brave <span class="inline-code">brave://extensions</span>.</p>
+        </li>
+        <li>
+          <h3>Turn on developer mode</h3>
+          <p>The switch is in the top right corner of that page. Loading an unpacked folder needs it.</p>
+        </li>
+        <li>
+          <h3>Load the unzipped folder</h3>
+          <p>Choose "Load unpacked" and select the folder that contains
+            <span class="inline-code">manifest.json</span>. The chevron icon appears in your toolbar.</p>
+        </li>
+        <li>
+          <h3>Open the agent page</h3>
+          <p>Visit <span class="inline-code">arena.ai/agent</span> and start a task. A small pill in the
+            bottom corner tells you it is watching, and how many times it has sent so far.</p>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <hr class="rule" />
+
+  <section class="section" id="questions">
+    <div class="wrap split">
+      <div>
+        <h2>Questions worth asking before you install it.</h2>
+        <p class="lede">
+          If something here is wrong for your setup, the answer is probably that you should not run it.
+        </p>
+      </div>
+      <div>
+        <details class="qa" open>
+          <summary>Can it send a message over and over in a loop?</summary>
+          <div class="answer">
+            It sends one message per banner appearance, then waits for the banner to leave the page for
+            at least a moment before arming again. Identical banners are ignored for six seconds after a
+            send. On top of that, the safety cap stops it after 30 messages in a row.
+          </div>
+        </details>
+        <details class="qa">
+          <summary>Does it read or send my conversations anywhere?</summary>
+          <div class="answer">
+            No. The content script runs on arena.ai pages and nothing else. It has no network code and no
+            analytics, and the only thing it stores locally is your popup settings and a counter. The
+            <a href="privacy.html">privacy page</a> lists exactly what is kept.
+          </div>
+        </details>
+        <details class="qa">
+          <summary>What happens if Arena changes the wording?</summary>
+          <div class="answer">
+            It stops working quietly, which is the safe failure. Nothing is sent, and the pill keeps
+            saying it is watching. The match is a case-insensitive pattern around "reached the
+            tool-call limit", so small wording changes usually still match.
+          </div>
+        </details>
+        <details class="qa">
+          <summary>Will it interfere with a message I am already writing?</summary>
+          <div class="answer">
+            Only if you turn off the draft guard. With it on, the extension checks the composer first and
+            does nothing when there is text in it.
+          </div>
+        </details>
+        <details class="qa">
+          <summary>Why not just click the button for me when the agent is idle?</summary>
+          <div class="answer">
+            Because an idle agent and a thinking agent look the same from outside. Guessing produces
+            duplicate messages in a conversation you then have to untangle. Reacting to the one banner
+            that names the limit is narrow, and narrow is the point.
+          </div>
+        </details>
+        <details class="qa">
+          <summary>Is this affiliated with Arena?</summary>
+          <div class="answer">
+            No. It is an independent extension that reads a page in your browser. Arena has no
+            involvement and makes no promises about it.
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <span>Arena Agent Auto-Continue. Independent tool, MIT licensed.</span>
+    <nav aria-label="Footer">
+      <a href="https://github.com/sarang-cmd/arena-agent-auto-continue">Source</a>
+      <a href="privacy.html">Privacy</a>
+      <a href="terms.html">Terms</a>
+      <a href="https://github.com/sarang-cmd/arena-agent-auto-continue/issues">Report a problem</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="demo.js"></script>
+</body>
+</html>
