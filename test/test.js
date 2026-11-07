@@ -187,6 +187,47 @@ async function run() {
     window.close();
   }
 
+  /* 7. Contenteditable composer (ProseMirror-style) without send button */
+  {
+    const { window, input } = makePage({ richComposer: true });
+    window.document.getElementById('send').remove();
+    window.eval(CONTENT);
+    await wait(2600);
+    const sends = window.__log.submits;
+    check('works with a contenteditable composer (Enter path)',
+      sends.length === 1 && sends[0].via === 'enter' && sends[0].text === 'continue',
+      JSON.stringify(sends));
+    check('contenteditable cleaned up after send',
+      (input.textContent || '').trim() === '', JSON.stringify(input.textContent));
+    window.close();
+  }
+
+  /* 8. Notice flapping (detach/re-attach without a real turn change) ---- */
+  {
+    const { window } = makePage();
+    window.eval(CONTENT);
+    await wait(2600); // first send happens here
+    const first = window.__log.submits.length;
+    const chat = window.document.getElementById('chat');
+    for (let i = 0; i < 6; i++) {
+      const n = window.document.getElementById('notice');
+      if (n) n.remove();
+      await wait(120);
+      if (!window.document.getElementById('notice')) {
+        const d = window.document.createElement('div');
+        d.id = 'notice';
+        d.innerHTML = `<span>${LIMIT_LINE}</span>`;
+        chat.appendChild(d);
+      }
+      await wait(120);
+    }
+    await wait(1500);
+    check('re-render flapping does not cause a second send',
+      window.__log.submits.length === first,
+      `sends=${window.__log.submits.length} (first=${first})`);
+    window.close();
+  }
+
   const failed = results.filter((r) => !r.pass);
   console.log(`\n${results.length - failed.length}/${results.length} passed`);
   process.exit(failed.length ? 1 : 0);
