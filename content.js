@@ -50,6 +50,7 @@
   const SAME_NOTICE_GUARD_MS = 6000;
   let lastStatus = 'idle';
   let lastStatusAt = 0;
+  let indicator = null;
   let observer = null;
   let debounceTimer = null;
 
@@ -74,6 +75,7 @@
   function status(text) {
     lastStatus = text;
     lastStatusAt = Date.now();
+    renderIndicator();
     persistStats();
   }
 
@@ -302,7 +304,7 @@
   /* ------------------------------------------------------------------ tick */
 
   function tick() {
-    if (!settings.enabled || stopped) return;
+    if (!settings.enabled || stopped) { renderIndicator(); return; }
     if (!onAgentPage()) return;
 
     const notice = findLimitNotice();
@@ -341,6 +343,48 @@
     }, delay);
   }
 
+  /* ------------------------------------------------------------- indicator */
+
+  function renderIndicator() {
+    if (!settings.showIndicator || !document.body) {
+      if (indicator && indicator.host && indicator.host.isConnected) indicator.host.remove();
+      indicator = null;
+      return;
+    }
+    if (!indicator) {
+      const host = document.createElement('div');
+      host.style.cssText = 'position:fixed;z-index:2147483000;right:14px;bottom:14px;';
+      const root = host.attachShadow({ mode: 'open' });
+      root.innerHTML = `
+        <style>
+          .pill{font:500 11px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
+            background:rgba(17,17,24,.86);color:#e8e8f0;border:1px solid rgba(255,255,255,.14);
+            border-radius:999px;padding:6px 11px;display:flex;gap:7px;align-items:center;
+            box-shadow:0 4px 18px rgba(0,0,0,.32);backdrop-filter:blur(8px);opacity:.72;
+            transition:opacity .15s;max-width:260px;pointer-events:none}
+          .pill:hover{opacity:1}
+          .dot{width:6px;height:6px;border-radius:50%;background:#7c6cff;flex:0 0 auto}
+          .dot.off{background:#6b7280}
+          .dot.bad{background:#f87171}
+          .txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+        </style>
+        <div class="pill" part="pill">
+          <span class="dot"></span><span class="txt"></span>
+        </div>`;
+      document.documentElement.appendChild(host);
+      indicator = { host, root };
+    }
+    const dot = indicator.root.querySelector('.dot');
+    const txt = indicator.root.querySelector('.txt');
+    const off = !settings.enabled || stopped;
+    dot.className = 'dot' + (stopped ? ' bad' : off ? ' off' : '');
+    const label = !settings.enabled ? 'auto-continue off'
+      : stopped ? `paused · ${consecutive} sent`
+      : `auto-continue on · ${consecutive} sent`;
+    txt.textContent = label;
+    indicator.host.title = `Arena Agent Auto-Continue — ${lastStatus}`;
+  }
+
   /* ---------------------------------------------------------------- wiring */
 
   function loadSettings(cb) {
@@ -377,6 +421,7 @@
         settings = { ...DEFAULTS, ...(changes.settings.newValue || {}) };
         if (settings.enabled) stopped = false;
         consecutive = 0;
+        renderIndicator();
         queueTick(0);
       });
     } catch (_) {}
@@ -392,6 +437,7 @@
       });
     } catch (_) {}
 
+    renderIndicator();
     tick();
   }
 
