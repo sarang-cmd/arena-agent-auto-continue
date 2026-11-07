@@ -376,8 +376,11 @@
     }
     const dot = indicator.root.querySelector('.dot');
     const txt = indicator.root.querySelector('.txt');
-    dot.className = 'dot';
-    const label = `auto-continue on · ${consecutive} sent`;
+    const off = !settings.enabled || stopped;
+    dot.className = 'dot' + (stopped ? ' bad' : off ? ' off' : '');
+    const label = !settings.enabled ? 'auto-continue off'
+      : stopped ? `paused · ${consecutive} sent`
+      : `auto-continue on · ${consecutive} sent`;
     txt.textContent = label;
     indicator.host.title = `Arena Agent Auto-Continue — ${lastStatus}`;
   }
