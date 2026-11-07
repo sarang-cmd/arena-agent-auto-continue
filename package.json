@@ -1,0 +1,15 @@
+{
+  "name": "arena-agent-auto-continue",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Sends \"continue\" when the Arena agent reaches its tool-call limit for the turn.",
+  "license": "MIT",
+  "scripts": {
+    "test": "node test/test.js",
+    "build": "bash scripts/build.sh",
+    "shots": "node scripts/shots.js"
+  },
+  "devDependencies": {
+    "jsdom": "^27.0.0"
+  }
+}
