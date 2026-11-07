@@ -7,7 +7,14 @@
  */
 const fs = require('fs');
 const path = require('path');
-const { JSDOM, VirtualConsole } = require('/home/user/.tmp/node_modules/jsdom');
+let JSDOM;
+let VirtualConsole;
+try {
+  ({ JSDOM, VirtualConsole } = require('jsdom'));
+} catch (_) {
+  console.error('jsdom is not installed. Run: npm install');
+  process.exit(1);
+}
 
 const CONTENT = fs.readFileSync(path.join(__dirname, '..', 'content.js'), 'utf8');
 
