@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Arena Agent Auto-Continue",
   "version": "1.0.0",
-  "description": "Automatically sends \"continue\" when the Arena agent reaches its per-turn tool-call limit.",
+  "description": "Sends one message when the Arena agent reaches its tool-call limit for the turn.",
   "permissions": [
     "storage",
     "activeTab"
