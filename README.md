@@ -1,7 +1,8 @@
-# Arena Agent Auto-Continue
+# Baton
 
-A small Chrome extension for [arena.ai/agent](https://arena.ai/agent). When the agent reaches its
-tool-call limit for the turn, it types `continue` into the message box and sends it, once per banner.
+Baton is a small Chrome extension for [arena.ai/agent](https://arena.ai/agent). When the agent reaches
+its tool-call limit for the turn, it types `continue` into the message box and sends it, once per
+banner, then waits for the next one.
 
 ![The landing page for the extension](docs/images/hero.png)
 
@@ -17,17 +18,17 @@ thinking, or read your conversations.
 
 The popup, on an arena.ai tab:
 
-![The extension popup, with the status line, switches and the session counter](docs/images/popup.png)
+<img src="docs/images/popup.png" width="270" alt="The Baton popup, with the status line, switches and the session counter">
 
 The settings it ships with, and the reasoning behind each default:
 
-![The settings table from the landing page](docs/images/settings.png)
+<img src="docs/images/settings.png" width="75%" alt="The settings table from the landing page">
 
 ## Install
 
 The extension is not published to the Chrome Web Store, so you load it unpacked from a release.
 
-1. Download `arena-auto-continue.zip` from the [latest release](https://github.com/sarang-cmd/arena-agent-auto-continue/releases/latest) and unzip it.
+1. Download `baton.zip` from the [latest release](https://github.com/sarang-cmd/baton/releases/latest) and unzip it.
 2. Open `chrome://extensions` (`edge://extensions` in Edge, `brave://extensions` in Brave).
 3. Turn on **Developer mode** in the top right.
 4. Choose **Load unpacked** and select the unzipped folder, the one containing `manifest.json`.
@@ -43,7 +44,7 @@ Open the toolbar icon on any arena.ai page.
 
 | Setting | Default | What it does |
 | --- | --- | --- |
-| Auto-continue | on | The master switch. |
+| Auto-send | on | The master switch. |
 | Only when tab is visible | on | Skips background tabs so two tabs cannot both answer the agent. |
 | Skip if you have typed something | on | Your draft always wins. It never overwrites text already in the composer. |
 | Status pill on the page | on | The small indicator in the bottom right corner of the page. |
@@ -81,8 +82,8 @@ The extension has no build step and no dependencies. `content.js`, `popup.js` an
 loaded directly by the browser.
 
 ```bash
-git clone https://github.com/sarang-cmd/arena-agent-auto-continue
-cd arena-agent-auto-continue
+git clone https://github.com/sarang-cmd/baton
+cd baton
 
 # run the jsdom test suite
 npm install
@@ -126,17 +127,8 @@ site/                landing page, privacy and terms pages (static, no build)
 test/test.js         jsdom test suite
 scripts/build.sh     packs the extension into dist/
 scripts/shots.js     regenerates docs/images
-tools/inspect-arena.js  console snippet for diagnosing a changed page
 docs/images/         screenshots used above
 ```
-
-## When detection fails
-
-If the pill says it is watching but nothing is sent, the page probably changed. Paste
-[`tools/inspect-arena.js`](tools/inspect-arena.js) into the DevTools console on the agent page. It
-reports which element the extension would treat as the message box, which buttons it would consider
-send buttons, and whether the banner text was found, along with the class names around each. Nothing
-is modified on the page.
 
 ## Landing page
 

@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Packs the extension into dist/arena-auto-continue.zip.
+# Packs the extension into dist/baton.zip.
 # Only the runtime files go in: the site, tests and screenshots stay out.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
 
-NAME="arena-auto-continue"
+NAME="baton"
 DIST="dist"
 rm -rf "$DIST"
 mkdir -p "$DIST/$NAME"

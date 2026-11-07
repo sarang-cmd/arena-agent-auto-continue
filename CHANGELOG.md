@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.1, 7 November 2026
+
+- Renamed to Baton. The extension id, storage keys and internal message names changed with it, so
+  load the new folder and remove the old unpacked copy.
+- Status pill text is plainer: "watching, 4 sent" instead of the old wording.
+- Release zip is now `baton.zip`.
+
 ## 1.0.0, 7 November 2026
 
 First release.
