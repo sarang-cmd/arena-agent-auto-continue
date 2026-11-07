@@ -2,7 +2,14 @@
    Usage: node scripts/shots.js   (requires playwright-core + chromium) */
 const path = require('path');
 const fs = require('fs');
-const { chromium } = require('/home/user/.tmp/node_modules/playwright-core');
+let chromium;
+try {
+  ({ chromium } = require('playwright-core'));
+} catch (_) {
+  console.error('playwright-core is not installed. Run: npm install --no-save playwright-core');
+  console.error('Then download a browser once with: npx playwright install chromium');
+  process.exit(1);
+}
 
 const root = path.resolve(__dirname, '..');
 const site = 'file://' + path.join(root, 'site');

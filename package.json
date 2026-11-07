@@ -11,5 +11,8 @@
   },
   "devDependencies": {
     "jsdom": "^27.0.0"
+  },
+  "optionalDependencies": {
+    "playwright-core": "^1.65.0"
   }
 }
