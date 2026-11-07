@@ -16,13 +16,10 @@ thinking, or read your conversations.
 
 ## What it looks like
 
-The popup, on an arena.ai tab:
+On the left, the popup on an arena.ai tab. On the right, the defaults it ships with and why each one
+is set that way:
 
-<img src="docs/images/popup.png" width="270" alt="The Baton popup, with the status line, switches and the session counter">
-
-The settings it ships with, and the reasoning behind each default:
-
-<img src="docs/images/settings.png" width="75%" alt="The settings table from the landing page">
+![The Baton popup beside the settings table from the landing page](docs/images/popup-and-settings.png)
 
 ## Install
 
@@ -127,6 +124,7 @@ site/                landing page, privacy and terms pages (static, no build)
 test/test.js         jsdom test suite
 scripts/build.sh     packs the extension into dist/
 scripts/shots.js     regenerates docs/images
+scripts/compose-figure.py  builds the combined popup + settings figure
 docs/images/         screenshots used above
 ```
 
