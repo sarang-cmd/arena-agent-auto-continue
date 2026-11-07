@@ -294,6 +294,7 @@
       if (!still || signatureOf(still) !== sig) return; // notice vanished → nothing to do
       if (sig === lastSentSignature && Date.now() - lastSendAt < SAME_NOTICE_GUARD_MS) return;
       if (settings.onlyVisibleTab && document.visibilityState === 'hidden') return;
+      if (Date.now() - lastSendAt < settings.cooldownMs) return;
       await doSend();
     }, Math.max(0, settings.delayMs));
   }
