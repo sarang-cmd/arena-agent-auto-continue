@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Arena Agent Auto-Continue</title>
+<style>
+  :root{
+    --stone:#e9e6df; --raised:#efede7; --sunk:#e0dcd3;
+    --ink:#22211e; --ink-soft:#4a4740; --muted:#5e5b54;
+    --accent:#2a5f63; --accent-deep:#1f4a4d; --warn:#9a6b22; --warn-tint:#f0e6d4;
+    --out:5px 5px 12px rgba(150,143,128,.36), -5px -5px 12px rgba(255,255,255,.9);
+    --out-sm:3px 3px 6px rgba(150,143,128,.34), -3px -3px 6px rgba(255,255,255,.9);
+    --in:inset 3px 3px 7px rgba(150,143,128,.4), inset -3px -3px 7px rgba(255,255,255,.85);
+    --serif:ui-serif,"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;
+    --sans:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0;width:320px;background:var(--stone);color:var(--ink);
+    font:13px/1.5 var(--sans);padding:16px 15px 14px;
+  }
+  header{display:flex;align-items:center;gap:9px;margin-bottom:14px}
+  header svg{width:24px;height:24px;flex:0 0 auto}
+  h1{font-family:var(--serif);font-size:14.5px;font-weight:600;margin:0;letter-spacing:-.01em}
+  .sub{font-size:11px;color:var(--muted);margin-top:1px}
+
+  .status{
+    display:flex;align-items:center;gap:8px;background:var(--sunk);
+    border-radius:10px;box-shadow:var(--in);padding:9px 11px;margin-bottom:14px;
+    font-size:11.5px;color:var(--ink-soft);line-height:1.4;
+  }
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--muted);flex:0 0 auto}
+  .dot.on{background:#3f7f5f}
+  .dot.bad{background:var(--warn)}
+  .status b{color:var(--ink);font-weight:650}
+
+  .row{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:8px 0}
+  .row + .row{border-top:1px solid rgba(150,143,128,.22)}
+  label.lbl{font-size:12.5px;color:var(--ink);cursor:pointer}
+  .hint{display:block;font-size:10.5px;color:var(--muted);margin-top:1px;font-weight:400}
+
+  /* switch: inset track, raised knob */
+  .switch{position:relative;width:46px;height:25px;flex:0 0 auto}
+  .switch input{position:absolute;inset:0;width:100%;height:100%;margin:0;opacity:0;cursor:pointer;z-index:2}
+  .track{position:absolute;inset:0;border-radius:999px;background:var(--sunk);box-shadow:var(--in);pointer-events:none;transition:background-color .18s ease}
+  .track::after{
+    content:"";position:absolute;top:3px;left:3px;width:19px;height:19px;border-radius:50%;
+    background:var(--raised);box-shadow:var(--out-sm);
+    transition:transform .18s cubic-bezier(.32,.72,0,1),background-color .18s ease;
+  }
+  .switch input:checked + .track{background:var(--accent)}
+  .switch input:checked + .track::after{transform:translateX(21px);background:#f6f4ef}
+  .switch input:focus-visible + .track{outline:3px solid var(--accent);outline-offset:3px}
+  @media (prefers-reduced-motion: reduce){ .track,.track::after{transition:none} }
+
+  input[type=text],input[type=number]{
+    background:var(--sunk);border:0;color:var(--ink);border-radius:8px;
+    box-shadow:var(--in);padding:6px 9px;font:inherit;font-size:12px;
+    width:88px;text-align:right;
+  }
+  input[type=text]{width:118px;text-align:left;font-family:var(--mono);font-size:11.5px}
+  input[type=number]{font-family:var(--mono);font-size:11.5px}
+  input:focus-visible{outline:2.5px solid var(--accent);outline-offset:1px}
+
+  .count-row{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:12px 0 2px;font-size:11.5px;color:var(--muted)
+  }
+  .count-row strong{font-family:var(--mono);font-size:15px;color:var(--ink);font-weight:550}
+
+  footer{display:flex;gap:7px;margin-top:12px}
+  button{
+    flex:1;background:var(--raised);border:0;color:var(--ink);font:inherit;
+    font-size:11.5px;font-weight:600;padding:8px 6px;border-radius:9px;cursor:pointer;
+    box-shadow:var(--out-sm);transition:box-shadow .16s ease,transform .16s ease,background-color .16s ease;
+  }
+  button:hover{background:#f4f2ed}
+  button:active{box-shadow:var(--in);transform:translateY(1px)}
+  button.primary{background:var(--accent);color:#f4f1ea}
+  button.primary:hover{background:var(--accent-deep)}
+  .note{margin-top:11px;font-size:10.5px;color:var(--muted);line-height:1.45}
+  .saved{
+    align-self:center;font-size:10.5px;color:var(--accent-deep);opacity:0;
+    transition:opacity .18s;flex:0 0 auto
+  }
+  .saved.show{opacity:1}
+</style>
+</head>
+<body>
+  <header>
+    <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+      <rect width="32" height="32" rx="9" fill="#2a5f63"/>
+      <path d="M12 9.5 L19 16 L12 22.5" fill="none" stroke="#f4f1ea" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+      <path d="M20 9.5 L27 16 L20 22.5" fill="none" stroke="#f4f1ea" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.45"/>
+    </svg>
+    <div>
+      <h1>Arena Agent Auto-Continue</h1>
+      <div class="sub">Sends one message at the tool-call limit</div>
+    </div>
+  </header>
+
+  <div class="status" role="status" aria-live="polite">
+    <span class="dot" id="dot"></span>
+    <span id="statusText">Checking the current tab</span>
+  </div>
+
+  <div class="row">
+    <label class="lbl" for="enabled">Auto-continue</label>
+    <span class="switch"><input type="checkbox" id="enabled" /><span class="track"></span></span>
+  </div>
+
+  <div class="row">
+    <label class="lbl" for="onlyVisibleTab">Only when tab is visible
+      <span class="hint">Stops two tabs answering at once</span>
+    </label>
+    <span class="switch"><input type="checkbox" id="onlyVisibleTab" /><span class="track"></span></span>
+  </div>
+
+  <div class="row">
+    <label class="lbl" for="skipIfDraft">Skip if you have typed something
+      <span class="hint">Your draft always wins</span>
+    </label>
+    <span class="switch"><input type="checkbox" id="skipIfDraft" /><span class="track"></span></span>
+  </div>
+
+  <div class="row">
+    <label class="lbl" for="showIndicator">Status pill on the page</label>
+    <span class="switch"><input type="checkbox" id="showIndicator" /><span class="track"></span></span>
+  </div>
+
+  <div class="row">
+    <label class="lbl" for="message">Message</label>
+    <input type="text" id="message" spellcheck="false" autocomplete="off" />
+  </div>
+
+  <div class="row">
+    <label class="lbl" for="delayMs">Delay
+      <span class="hint">Milliseconds before sending</span>
+    </label>
+    <input type="number" id="delayMs" min="0" max="20000" step="100" />
+  </div>
+
+  <div class="row">
+    <label class="lbl" for="maxConsecutive">Safety cap
+      <span class="hint">Pauses after this many sends</span>
+    </label>
+    <input type="number" id="maxConsecutive" min="1" max="999" step="1" />
+  </div>
+
+  <div class="count-row">
+    <span>Sent this session</span>
+    <strong id="count">0</strong>
+  </div>
+
+  <footer>
+    <button class="primary" id="reset">Reset counter</button>
+    <button id="defaults">Restore defaults</button>
+    <span class="saved" id="saved">saved</span>
+  </footer>
+
+  <p class="note">
+    Runs only on arena.ai. Settings and the counter stay in this browser.
+  </p>
+
+  <script src="popup.js"></script>
+</body>
+</html>
