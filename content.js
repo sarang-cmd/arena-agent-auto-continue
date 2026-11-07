@@ -1,5 +1,5 @@
 /**
- * Arena Agent Auto-Continue
+ * Baton
  * ------------------------------------------------------------------
  * Watches the arena.ai/agent page for the message:
  *   "The agent reached the tool-call limit for this turn.
@@ -15,8 +15,8 @@
  *  - optional: only act while the tab is visible
  */
 (() => {
-  if (window.__arenaAutoContinueLoaded) return;
-  window.__arenaAutoContinueLoaded = true;
+  if (window.__batonLoaded) return;
+  window.__batonLoaded = true;
 
   const DEFAULTS = {
     enabled: true,
@@ -46,7 +46,7 @@
   let tickCount = 0;
 
   // If the identical notice text shows up again this quickly after a send, it
-  // is the same occurrence re-rendering, not a new limit — the agent cannot
+  // is the same occurrence re-rendering, not a new limit, since the agent cannot
   // burn a whole tool budget in a few seconds.
   const SAME_NOTICE_GUARD_MS = 6000;
   let lastStatus = 'idle';
@@ -132,7 +132,7 @@
       if (!text || text.length < 12) return false;
       if (RE_LIMIT.test(text)) { exact = node.parentElement; return true; }
       if (!continuationOnly && RE_CONTINUE.test(text)) {
-        // "Send a message to continue…" alone is too generic — only accept it
+        // "Send a message to continue" alone is too generic, so only accept it
         // when the surrounding block really is the limit notice.
         const around = (node.parentElement && node.parentElement.textContent) || '';
         if (RE_LIMIT.test(around)) continuationOnly = node.parentElement;
@@ -283,7 +283,7 @@
       return false;
     }
     if (settings.skipIfDraft && hasDraft(composer)) {
-      status('draft in composer — skipped');
+      status('draft in composer, skipped');
       return false;
     }
 
@@ -303,7 +303,7 @@
 
     if (consecutive >= settings.maxConsecutive) {
       stopped = true;
-      setStatus(`hit safety cap (${consecutive}) — paused`);
+      setStatus(`paused at the safety cap of ${consecutive}`);
     }
     return true;
   }
@@ -404,11 +404,11 @@
     const txt = indicator.root.querySelector('.txt');
     const off = !settings.enabled || stopped;
     dot.className = 'dot' + (stopped ? ' bad' : off ? ' off' : '');
-    const label = !settings.enabled ? 'auto-continue off'
-      : stopped ? `paused · ${consecutive} sent`
-      : `auto-continue on · ${consecutive} sent`;
+    const label = !settings.enabled ? 'auto-send off'
+      : stopped ? `paused, ${consecutive} sent`
+      : `watching, ${consecutive} sent`;
     txt.textContent = label;
-    indicator.host.title = `Arena Agent Auto-Continue — ${lastStatus}`;
+    indicator.host.title = `Baton: ${lastStatus}`;
   }
 
   /* ---------------------------------------------------------------- wiring */
@@ -454,7 +454,7 @@
 
     try {
       chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
-        if (!msg || msg.type !== 'arena-ac-status') return;
+        if (!msg || msg.type !== 'baton-status') return;
         reply({
           settings, consecutive, stopped, lastStatus,
           hasNotice: !!findLimitNotice(),

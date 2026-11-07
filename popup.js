@@ -59,7 +59,7 @@ function renderStatus(settings, stats) {
 
   if (!settings.enabled) {
     dot.classList.add('bad');
-    txt.innerHTML = 'Paused. Auto-continue is <b>off</b>.';
+    txt.innerHTML = 'Paused. Auto-send is <b>off</b>.';
     return;
   }
   if (stats && stats.stopped) {
@@ -91,7 +91,7 @@ function pingActiveTab(cb) {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tab = tabs && tabs[0];
       if (!tab || !/^https:\/\/([a-z0-9-]+\.)?arena\.ai\//i.test(tab.url || '')) return cb(null);
-      chrome.tabs.sendMessage(tab.id, { type: 'arena-ac-status' }, (res) => {
+      chrome.tabs.sendMessage(tab.id, { type: 'baton-status' }, (res) => {
         if (chrome.runtime.lastError || !res) return cb(null);
         cb(res);
       });
@@ -124,7 +124,7 @@ load((settings) => {
     chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
       const tab = tabs && tabs[0];
       if (!tab) return;
-      chrome.tabs.sendMessage(tab.id, { type: 'arena-ac-status' }, () => {});
+      chrome.tabs.sendMessage(tab.id, { type: 'baton-status' }, () => {});
     });
     pingActiveTab((res) => renderStatus(next, res));
   });
