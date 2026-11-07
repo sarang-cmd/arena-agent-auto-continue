@@ -103,7 +103,7 @@ function pingActiveTab(cb) {
 
 load((settings) => {
   fillForm(settings);
-  renderStatus(settings, null);
+  pingActiveTab((res) => renderStatus(settings, res));
 
   for (const f of FIELDS) {
     const el = $(f);
@@ -112,7 +112,7 @@ load((settings) => {
     el.addEventListener(evt, () => {
       const next = readForm();
       save(next);
-      renderStatus(next, null);
+      pingActiveTab((res) => renderStatus(next, res));
     });
   }
 
