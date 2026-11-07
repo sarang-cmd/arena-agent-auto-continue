@@ -114,8 +114,11 @@
   }
 
   function pressEnter(el) {
-    const opts = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
-    el.dispatchEvent(new KeyboardEvent('keydown', opts));
+    const opts = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true, composed: true };
+    const down = new KeyboardEvent('keydown', opts);
+    el.dispatchEvent(down);
+    el.dispatchEvent(new KeyboardEvent('keypress', opts));
+    el.dispatchEvent(new KeyboardEvent('keyup', opts));
   }
 
   function clickSendButton(composer) {
