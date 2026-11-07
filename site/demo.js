@@ -85,7 +85,7 @@
     setStatus('agent working');
 
     if (!toggle || !toggle.checked) {
-      later(() => { notice.classList.add('shown'); setStatus('limit reached, auto-continue off'); if (run) run.disabled = false; running = false; }, dur(700));
+      later(() => { notice.classList.add('shown'); setStatus('limit reached, auto-send off'); if (run) run.disabled = false; running = false; }, dur(700));
       return;
     }
 
