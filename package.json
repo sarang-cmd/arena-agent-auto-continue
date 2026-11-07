@@ -15,5 +15,8 @@
   },
   "optionalDependencies": {
     "playwright-core": "^1.65.0"
+  },
+  "dependencies": {
+    "@vercel/speed-insights": "^2.1.0"
   }
 }
