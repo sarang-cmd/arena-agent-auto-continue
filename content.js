@@ -428,7 +428,7 @@
     observer = new MutationObserver(() => queueTick(200));
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     // Fallback poll: some frameworks update text without mutations we catch.
-    setInterval(() => queueTick(0), 700);
+    setInterval(() => queueTick(0), 200);
 
     // Anything the user does manually resets the safety cap.
     const userReset = (e) => {
