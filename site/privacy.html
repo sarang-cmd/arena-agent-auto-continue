@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy, Arena Agent Auto-Continue</title>
+<meta name="description" content="What the Arena Agent Auto-Continue browser extension stores, what it reads, and what it never sends anywhere." />
+<meta name="theme-color" content="#e9e6df" />
+<link rel="icon" href="icon.svg" type="image/svg+xml" />
+<link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+
+<header class="site-head">
+  <div class="wrap">
+    <a class="brand" href="index.html">
+      <svg viewBox="0 0 32 32" aria-hidden="true" focusable="false">
+        <rect x="0" y="0" width="32" height="32" rx="9" fill="#2a5f63"/>
+        <path d="M12 9.5 L19 16 L12 22.5" fill="none" stroke="#f4f1ea" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M20 9.5 L27 16 L20 22.5" fill="none" stroke="#f4f1ea" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.45"/>
+      </svg>
+      Arena Agent Auto-Continue
+    </a>
+    <nav class="site-nav" aria-label="Main">
+      <a href="index.html">Overview</a>
+      <a href="terms.html">Terms</a>
+    </nav>
+  </div>
+</header>
+
+<main class="doc">
+  <div class="wrap prose">
+    <h1>Privacy</h1>
+    <p class="doc-meta">Applies to the browser extension and this website. Last updated 7 November 2026.</p>
+
+    <p class="mt-24">
+      This extension exists to send the word "continue". That job does not require collecting anything
+      about you, so it does not. This page describes the small amount of data that stays on your own
+      computer, and confirms what never leaves it.
+    </p>
+
+    <h2>What the extension stores</h2>
+    <p>
+      One record in your browser's local extension storage. It contains your popup settings (whether
+      auto-continue is on, the delay, the message text, the safety cap, and the two guard switches) and
+      a counter of how many messages have been sent in this session. You can clear it by removing the
+      extension, and nothing is written to disk outside that storage area.
+    </p>
+
+    <h2>What the extension can see</h2>
+    <p>
+      The extension is granted access to pages on <code class="inline-code">arena.ai</code> only,
+      because that is where the banner appears. On those pages it reads text in order to answer one
+      question: is the tool-call limit banner on screen? It also reads whether the message box is
+      empty before typing into it.
+    </p>
+    <p>
+      Text from your conversations is not copied, stored, logged, or transmitted. It is inspected in
+      place and discarded immediately.
+    </p>
+
+    <h2>What never happens</h2>
+    <ul>
+      <li>No data is sent to the developer or to any third party. The extension contains no network requests.</li>
+      <li>No analytics, telemetry, crash reporting, advertising, or fingerprinting.</li>
+      <li>No account, sign-in, licence key, or payment.</li>
+      <li>No remote code. Everything that runs is in the files you installed.</li>
+      <li>No reading of other tabs, browsing history, bookmarks, or downloads.</li>
+    </ul>
+
+    <h2>Permissions, in plain language</h2>
+    <ul>
+      <li><code class="inline-code">storage</code> keeps your settings and the send counter on your machine.</li>
+      <li><code class="inline-code">activeTab</code> lets the popup ask the current arena.ai tab for its status while the popup is open.</li>
+      <li>Host access to <code class="inline-code">arena.ai</code> is what allows the script to see the banner and fill the message box.</li>
+    </ul>
+
+    <h2>This website</h2>
+    <p>
+      These pages are static files with no cookies, no analytics, and no third-party embeds. The only
+      network requests they make are for the pages' own files. Fonts are taken from your operating
+      system, so nothing calls out to a font service.
+    </p>
+
+    <h2>Changes</h2>
+    <p>
+      If a future version ever changes any of the above, this page will be updated before that version
+      is released, and the change will be noted in the release notes.
+    </p>
+
+    <h2>Contact</h2>
+    <p>
+      Questions about this page can go to the
+      <a href="https://github.com/sarang-cmd/arena-agent-auto-continue/issues">project issue tracker</a>.
+    </p>
+
+    <a class="back-link" href="index.html">Back to the overview</a>
+  </div>
+</main>
+
+<footer class="site-foot">
+  <div class="wrap">
+    <span>Arena Agent Auto-Continue. Independent tool, MIT licensed.</span>
+    <nav aria-label="Footer">
+      <a href="https://github.com/sarang-cmd/arena-agent-auto-continue">Source</a>
+      <a href="index.html">Overview</a>
+      <a href="terms.html">Terms</a>
+    </nav>
+  </div>
+</footer>
+
+</body>
+</html>
