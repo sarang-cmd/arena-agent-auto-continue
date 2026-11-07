@@ -1,8 +1,8 @@
 {
-  "name": "arena-agent-auto-continue",
-  "version": "1.0.0",
+  "name": "baton",
+  "version": "1.0.1",
   "private": true,
-  "description": "Sends \"continue\" when the Arena agent reaches its tool-call limit for the turn.",
+  "description": "Sends \"continue\" when the Arena agent hits its tool-call limit for the turn.",
   "license": "MIT",
   "scripts": {
     "test": "node test/test.js",
