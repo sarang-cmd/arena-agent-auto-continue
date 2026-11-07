@@ -13,7 +13,15 @@
 
   let fired = false;
 
-  // One send per page load is enough for this first version.
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  function isVisible(el) {
+    if (!el || !el.isConnected) return false;
+    const r = el.getBoundingClientRect();
+    if (r.width < 2 || r.height < 2) return false;
+    const cs = getComputedStyle(el);
+    return cs.visibility !== 'hidden' && cs.display !== 'none' && cs.opacity !== '0';
+  }
 
   function findLimitNotice() {
     if (!document.body) return null;
@@ -32,44 +40,120 @@
     return null;
   }
 
+  function looksLikeSearch(el) {
+    const hint = [
+      el.getAttribute('placeholder'),
+      el.getAttribute('aria-label'),
+      el.getAttribute('role'),
+      el.id,
+      el.className
+    ].filter((v) => typeof v === 'string').join(' ');
+    return /search|filter/i.test(hint);
+  }
+
   function findComposer() {
     const selectors = ['textarea', 'div[contenteditable="true"]', '[contenteditable="true"]', '[role="textbox"]'];
+    const candidates = [];
     for (const sel of selectors) {
       for (const el of document.querySelectorAll(sel)) {
         if (el.disabled || el.readOnly) continue;
-        const r = el.getBoundingClientRect();
-        if (r.width > 40 && r.height > 4) return el;
+        if (!isVisible(el) || looksLikeSearch(el)) continue;
+        candidates.push(el);
       }
     }
-    return null;
+    if (!candidates.length) return null;
+    const vh = window.innerHeight || 800;
+    return candidates
+      .map((el) => {
+        const r = el.getBoundingClientRect();
+        return { el, score: r.width * (r.top > vh * 0.35 ? 1.5 : 0.6) + r.top * 0.25 };
+      })
+      .sort((a, b) => b.score - a.score)[0].el;
+  }
+
+  function hasDraft(el) {
+    if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') return el.value.trim() !== '';
+    return (el.textContent || '').replace(/\u200b/g, '').trim() !== '';
+  }
+
+  function setNativeValue(el, value) {
+    const proto = el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+    const setter = Object.getOwnPropertyDescriptor(proto, 'value').set;
+    setter.call(el, value);
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+    el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
+
+  function insertText(el, text) {
+    el.focus();
+    if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
+      setNativeValue(el, text);
+      return;
+    }
+    // contenteditable editors (ProseMirror, TipTap, Lexical) handle insertText
+    const sel = window.getSelection && window.getSelection();
+    if (sel && document.createRange) {
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      sel.removeAllRanges();
+      sel.addRange(range);
+    }
+    let ok = false;
+    try { ok = document.execCommand('insertText', false, text); } catch (_) { ok = false; }
+    if (!ok || !hasDraft(el)) {
+      el.textContent = text;
+      el.dispatchEvent(new InputEvent('input', { bubbles: true, data: text, inputType: 'insertText' }));
+    }
+    try {
+      const r2 = document.createRange();
+      r2.selectNodeContents(el);
+      r2.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(r2);
+    } catch (_) {}
   }
 
   function pressEnter(el) {
     const opts = { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true };
     el.dispatchEvent(new KeyboardEvent('keydown', opts));
-    el.dispatchEvent(new KeyboardEvent('keyup', opts));
   }
 
-  function send(el) {
-    el.focus();
-    if (el.tagName === 'TEXTAREA' || el.tagName === 'INPUT') {
-      el.value = MESSAGE;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-    } else {
-      el.textContent = MESSAGE;
-      el.dispatchEvent(new InputEvent('input', { bubbles: true, data: MESSAGE }));
+  function clickSendButton(composer) {
+    let scope = composer.closest('form') || composer.parentElement;
+    for (let i = 0; i < 5 && scope && scope !== document.body; i++) {
+      const buttons = [...scope.querySelectorAll('button, [role="button"]')];
+      const match = buttons.find((b) => {
+        if (b.disabled || b.getAttribute('aria-disabled') === 'true') return false;
+        const label = [
+          b.getAttribute('aria-label'),
+          b.getAttribute('title'),
+          b.getAttribute('data-testid'),
+          b.textContent
+        ].filter(Boolean).join(' ').trim();
+        if (!/send|submit|arrow|^\s*$/i.test(label)) return false;
+        return isVisible(b) && (b.querySelector('svg') || /send|submit/i.test(label));
+      });
+      if (match) { match.click(); return true; }
+      scope = scope.parentElement;
     }
-    pressEnter(el);
+    return false;
+  }
+
+  async function doSend() {
+    const composer = findComposer();
+    if (!composer) return false;
+    if (hasDraft(composer)) return false;
+    insertText(composer, MESSAGE);
+    await sleep(150);
+    if (!clickSendButton(composer)) pressEnter(composer);
+    return true;
   }
 
   function tick() {
     if (fired) return;
-    const notice = findLimitNotice();
-    if (!notice) return;
-    const composer = findComposer();
-    if (!composer) return;
+    if (!findLimitNotice()) return;
     fired = true;
-    send(composer);
+    doSend();
   }
 
   const start = () => {
