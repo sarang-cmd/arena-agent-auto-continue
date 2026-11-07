@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Arena Agent Auto-Continue",
-  "version": "1.0.0",
-  "description": "Automatically sends \"continue\" when the Arena agent reaches its per-turn tool-call limit.",
+  "name": "Baton",
+  "version": "1.0.1",
+  "description": "Sends \"continue\" when the Arena agent hits its tool-call limit for the turn.",
   "permissions": [
     "storage",
     "activeTab"
@@ -13,7 +13,7 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Arena Agent Auto-Continue",
+    "default_title": "Baton",
     "default_icon": {
       "16": "icons/icon16.png",
       "32": "icons/icon32.png",
