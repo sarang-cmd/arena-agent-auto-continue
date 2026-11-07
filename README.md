@@ -126,8 +126,17 @@ site/                landing page, privacy and terms pages (static, no build)
 test/test.js         jsdom test suite
 scripts/build.sh     packs the extension into dist/
 scripts/shots.js     regenerates docs/images
+tools/inspect-arena.js  console snippet for diagnosing a changed page
 docs/images/         screenshots used above
 ```
+
+## When detection fails
+
+If the pill says it is watching but nothing is sent, the page probably changed. Paste
+[`tools/inspect-arena.js`](tools/inspect-arena.js) into the DevTools console on the agent page. It
+reports which element the extension would treat as the message box, which buttons it would consider
+send buttons, and whether the banner text was found, along with the class names around each. Nothing
+is modified on the page.
 
 ## Landing page
 
