@@ -13,6 +13,8 @@
 
   let fired = false;
 
+  // One send per page load is enough for this first version.
+
   function findLimitNotice() {
     if (!document.body) return null;
     const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, {
