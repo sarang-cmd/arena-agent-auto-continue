@@ -11,7 +11,7 @@
  *  - if the notice survives a send, it stops instead of spamming
  *  - cooldown between sends
  *  - never overwrites text you already typed
- *  - hard cap on consecutive auto-sends (configurable, reset from popup)
+ *  - hard cap on consecutive auto-sends (configurable, reset from settings)
  *  - optional: only act while the tab is visible
  */
 (() => {
@@ -793,57 +793,65 @@
   /* ------------------------------------------------------------- indicator */
 
   /**
-   * A compact plate in the corner that expands on hover or keyboard focus.
+   * The on-page plate.
    *
-   * Collapsed it is 104px of dot, count and state. Expanded it opens to a small
-   * panel with the name, what it is doing right now, and the session total. It
-   * is built for the dark console it sits on, not for the light marketing page,
-   * so the surface is warm charcoal rather than stone.
+   * Collapsed it shows the count and the state. Hover or keyboard focus expands
+   * it to the last action; the gear pins it open and swaps to the settings view,
+   * so settings live here rather than in a separate popup window.
    */
   const INDICATOR_CSS = `
     :host { all: initial; }
 
     .root {
-      /* arrives rather than appearing, once, when the page is ready */
-      animation: arrive .32s cubic-bezier(.32, .72, 0, 1) both;
-      transform-origin: bottom right;
       font: 400 11px/1.4 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
       -webkit-font-smoothing: antialiased;
       color: #ece9e2;
       pointer-events: auto;
+      animation: arrive .3s cubic-bezier(.32, .72, 0, 1) both;
+      transform-origin: bottom right;
+      scrollbar-width: none;
     }
+    .root ::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
     .plate {
-      width: 104px;
-      padding: 7px 10px 8px;
-      border-radius: 9px;
-      background: rgba(26, 25, 23, .93);
+      width: 124px;
+      padding: 8px 12px;
+      border-radius: 10px;
+      background: rgba(26, 25, 23, .94);
       border: 1px solid rgba(255, 255, 255, .09);
-      box-shadow: 0 1px 0 rgba(255, 255, 255, .05) inset, 0 6px 20px rgba(0, 0, 0, .38);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, .05) inset, 0 8px 24px rgba(0, 0, 0, .4);
       -webkit-backdrop-filter: blur(10px) saturate(120%);
       backdrop-filter: blur(10px) saturate(120%);
-      opacity: .84;
-      cursor: default;
+      opacity: .86;
       overflow: hidden;
-      transition: width .22s cubic-bezier(.32, .72, 0, 1),
-                  opacity .16s ease,
-                  border-color .16s ease;
+      transition:
+        width .22s cubic-bezier(.32, .72, 0, 1),
+        opacity .16s ease,
+        border-color .16s ease;
     }
 
     .root:hover .plate,
-    .plate:focus-visible {
-      width: 226px;
+    .plate:focus-within,
+    .root[data-pinned="true"] .plate {
+      width: 276px;
       opacity: 1;
       border-color: rgba(255, 255, 255, .16);
     }
 
-    .plate:focus-visible { outline: 2px solid #7fb3b7; outline-offset: 2px; }
-
-    .row {
+    .summary {
       display: flex;
       align-items: center;
-      gap: 7px;
-      height: 14px;
+      gap: 8px;
+      height: 18px;
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      background: none;
+      border: 0;
+      font: inherit;
+      color: inherit;
+      text-align: left;
+      cursor: default;
     }
 
     .dot {
@@ -863,6 +871,7 @@
       font-variant-numeric: tabular-nums;
       color: #f2efe8;
       flex: 0 0 auto;
+      min-width: 8px;
     }
 
     .state {
@@ -874,28 +883,51 @@
       letter-spacing: .01em;
     }
 
-    /* the part that only exists once expanded */
-    .more {
-      height: 0;
+    .gear {
+      flex: 0 0 auto;
+      width: 20px;
+      height: 20px;
+      margin: -3px -5px -3px 0;
+      display: grid;
+      place-items: center;
+      border: 0;
+      border-radius: 5px;
+      background: none;
+      color: #8b877e;
+      cursor: pointer;
       opacity: 0;
-      transition: height .22s cubic-bezier(.32, .72, 0, 1), opacity .14s ease;
+      transition: opacity .14s ease, background-color .14s ease, color .14s ease;
+    }
+    .root:hover .gear,
+    .plate:focus-within .gear,
+    .root[data-pinned="true"] .gear { opacity: 1; }
+    .gear:hover { background: rgba(255, 255, 255, .09); color: #e7e3da; }
+    .gear:focus-visible { outline: 2px solid #7fb3b7; outline-offset: 0; }
+
+    /* the expanding part */
+    .more {
+      max-height: 0;
+      opacity: 0;
+      overflow: hidden;
+      transition:
+        max-height .24s cubic-bezier(.32, .72, 0, 1),
+        opacity .14s ease;
     }
     .root:hover .more,
-    .plate:focus-visible .more {
-      height: 74px;
+    .plate:focus-within .more,
+    .root[data-pinned="true"] .more {
+      max-height: 420px;
       opacity: 1;
-      transition-delay: .04s;
+      transition-delay: .03s;
     }
 
     .name {
-      margin-top: 7px;
+      margin-top: 8px;
       padding-top: 8px;
       border-top: 1px solid rgba(255, 255, 255, .09);
       font: 600 12px/1.2 ui-serif, "Iowan Old Style", Palatino, Georgia, serif;
-      letter-spacing: .005em;
       color: #f6f3ec;
     }
-
     .detail {
       margin-top: 5px;
       color: #a8a49b;
@@ -903,12 +935,38 @@
       overflow: hidden;
       text-overflow: ellipsis;
     }
+    .session { margin-top: 4px; color: #8b877e; font-variant-numeric: tabular-nums; }
 
-    .session {
-      margin-top: 5px;
-      color: #8b877e;
-      font-variant-numeric: tabular-nums;
+    .view[hidden] { display: none; }
+    .settingsView { padding-bottom: 2px; }
+    .settingsHead {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 0 10px;
+      padding-top: 9px;
+      border-top: 1px solid rgba(255, 255, 255, .09);
     }
+    .back {
+      width: 20px;
+      height: 20px;
+      display: grid;
+      place-items: center;
+      border: 0;
+      border-radius: 5px;
+      background: none;
+      color: #8b877e;
+      cursor: pointer;
+      margin-left: -4px;
+    }
+    .back:hover { background: rgba(255, 255, 255, .09); color: #e7e3da; }
+    .back:focus-visible { outline: 2px solid #7fb3b7; outline-offset: 0; }
+    .settingsTitle {
+      font: 600 12px/1.2 ui-serif, "Iowan Old Style", Palatino, Georgia, serif;
+      color: #f6f3ec;
+    }
+    .settingsBody { scrollbar-width: none; }
+    .settingsBody::-webkit-scrollbar { width: 0; height: 0; display: none; }
 
     @keyframes arrive {
       from { opacity: 0; transform: translateY(6px) scale(.96); }
@@ -916,7 +974,7 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-      .plate, .more { transition: none; }
+      .plate, .more, .gear { transition: none; }
       .root { animation: none; }
     }
   `;
@@ -924,17 +982,54 @@
   const STATE_LABEL = {
     watching: 'watching',
     sent: 'sent',
+    busy: 'working',
     paused: 'paused',
-    off: 'off',
-    busy: 'agent working'
+    off: 'off'
   };
 
   function indicatorState() {
     if (!settings.enabled) return 'off';
     if (stopped) return 'paused';
-    if (/^sent "|^sent /.test(lastStatus) || /sent .*cleared|new content/.test(lastStatus)) return 'sent';
-    if (/working|waiting/.test(lastStatus)) return 'busy';
+    if (/sent .*(cleared|new content)/.test(lastStatus)) return 'sent';
+    if (/working|waiting|typing/.test(lastStatus)) return 'busy';
     return 'watching';
+  }
+
+  let panelMounted = false;
+
+  function openSettingsView() {
+    if (!indicator) return;
+    const root = indicator.root;
+    root.querySelector('.root').dataset.pinned = 'true';
+    root.querySelector('.statusView').hidden = true;
+    root.querySelector('.settingsView').hidden = false;
+    root.querySelector('.gear').setAttribute('aria-expanded', 'true');
+    if (!panelMounted && window.BatonPanel) {
+      const host = root.querySelector('.settingsBody');
+      host.innerHTML = '';
+      window.BatonPanel.mount(host, { compact: true, onClose: closeIndicator }).then(() => {
+        panelMounted = true;
+      });
+    }
+    // move focus into the view so Escape and Tab behave, but mark it
+    // programmatic so the pointer path does not paint a focus ring
+    const view = root.querySelector('.settingsView');
+    view.setAttribute('tabindex', '-1');
+    view.style.outline = 'none';
+    view.focus({ preventScroll: true });
+  }
+
+  function closeSettingsView() {
+    if (!indicator) return;
+    const root = indicator.root;
+    root.querySelector('.root').dataset.pinned = 'false';
+    root.querySelector('.settingsView').hidden = true;
+    root.querySelector('.statusView').hidden = false;
+    root.querySelector('.gear').setAttribute('aria-expanded', 'false');
+  }
+
+  function closeIndicator() {
+    closeSettingsView();
   }
 
   function renderIndicator() {
@@ -950,20 +1045,60 @@
       const root = host.attachShadow({ mode: 'open' });
       root.innerHTML = `
         <style>${INDICATOR_CSS}</style>
-        <div class="root" data-state="watching">
-          <div class="plate" tabindex="0" role="status" aria-live="polite">
-            <div class="row">
+        <div class="root" data-state="watching" data-pinned="false">
+          <div class="plate">
+            <div class="summary">
               <span class="dot" aria-hidden="true"></span>
               <span class="count">0</span>
               <span class="state"></span>
+              <button class="gear" type="button" aria-label="Baton settings" aria-expanded="false">
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="none" aria-hidden="true"
+                     stroke="currentColor" stroke-width="1.35" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="8" cy="8" r="3"/>
+                  <circle cx="8" cy="8" r="5"/>
+                  <path d="M8 1.4v1.6M8 13v1.6M1.4 8h1.6M13 8h1.6M3.3 3.3l1.15 1.15M11.55 11.55l1.15 1.15M12.7 3.3l-1.15 1.15M4.45 11.55l-1.15 1.15"/>
+                </svg>
+              </button>
             </div>
             <div class="more">
-              <div class="name">Baton</div>
-              <div class="detail"></div>
-              <div class="session"></div>
+              <div class="view statusView">
+                <div class="name">Baton</div>
+                <div class="detail"></div>
+                <div class="session"></div>
+              </div>
+              <div class="view settingsView" hidden>
+                <div class="settingsHead">
+                  <button class="back" type="button" aria-label="Back to status">
+                    <svg width="13" height="13" viewBox="0 0 16 16" fill="none" aria-hidden="true"
+                         stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                      <path d="M9.5 3.5 5 8l4.5 4.5"/>
+                    </svg>
+                  </button>
+                  <span class="settingsTitle">Settings</span>
+                </div>
+                <div class="settingsBody"></div>
+              </div>
             </div>
           </div>
         </div>`;
+
+      const gh = root.querySelector('.gear');
+      gh.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (root.querySelector('.settingsView').hidden) openSettingsView();
+        else closeSettingsView();
+      });
+      root.querySelector('.back').addEventListener('click', closeSettingsView);
+
+      // Escape backs out, the way it would in a panel
+      host.addEventListener('keydown', (e) => {
+        if (e.key !== 'Escape') return;
+        if (!root.querySelector('.settingsView').hidden) {
+          e.stopPropagation();
+          closeSettingsView();
+        }
+      });
+
       document.documentElement.appendChild(host);
       indicator = { host, root };
     }
@@ -974,7 +1109,7 @@
 
     indicator.root.querySelector('.count').textContent = String(consecutive);
     indicator.root.querySelector('.state').textContent =
-      settings.enabled ? STATE_LABEL[state] : 'auto-send off';
+      settings.enabled ? STATE_LABEL[state] : 'off';
 
     const detail = indicator.root.querySelector('.detail');
     const session = indicator.root.querySelector('.session');
@@ -983,10 +1118,12 @@
       ? '1 message sent this session'
       : `${consecutive} messages sent this session`;
 
-    const plate = indicator.root.querySelector('.plate');
-    plate.setAttribute('aria-label',
-      `Baton. ${settings.enabled ? STATE_LABEL[state] : 'off'}. ${consecutive} sent. ${lastStatus}`);
-    plate.title = '';
+    const gear = indicator.root.querySelector('.gear');
+    gear.setAttribute('aria-expanded', String(!indicator.root.querySelector('.settingsView').hidden));
+    gear.setAttribute(
+      'aria-label',
+      `Baton settings. Currently ${settings.enabled ? STATE_LABEL[state] : 'off'}, ${consecutive} sent.`
+    );
   }
 
   /* ---------------------------------------------------------------- wiring */
@@ -1034,6 +1171,7 @@
       chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
         if (!msg) return;
         if (msg.type === 'baton-pick') { reply({ ok: startPicker() }); return; }
+        if (msg.type === 'baton-reset') { consecutive = 0; stopped = false; suppressUntil = 0; reply({ ok: true }); return; }
         if (msg.type === 'baton-pick-cancel') { stopPicker(); reply({ ok: true }); return; }
         if (msg.type !== 'baton-status') return;
         reply({

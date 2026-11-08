@@ -16,6 +16,7 @@ try {
   process.exit(1);
 }
 
+const PANEL = fs.readFileSync(path.join(__dirname, '..', 'ui', 'panel.js'), 'utf8');
 const CONTENT = fs.readFileSync(path.join(__dirname, '..', 'content.js'), 'utf8');
 
 const LIMIT_LINE =
@@ -154,6 +155,7 @@ async function run() {
   /* 1. Fires once when the exact notice appears ------------------------- */
   {
     const { window, input } = makePage();
+    window.eval(PANEL);
     window.eval(CONTENT);
     await wait(2600); // loadSettings → start → tick → delay(1200)
     const sends = window.__log.submits;
@@ -165,6 +167,7 @@ async function run() {
   /* 2. Does not fire when there is no notice ---------------------------- */
   {
     const { window } = makePage({ withNotice: false });
+    window.eval(PANEL);
     window.eval(CONTENT);
     await wait(2600);
     check('silent when no notice is present', window.__log.submits.length === 0,
@@ -175,6 +178,7 @@ async function run() {
   /* 3. Never overwrites a draft ----------------------------------------- */
   {
     const { window } = makePage({ draft: 'my half-written prompt' });
+    window.eval(PANEL);
     window.eval(CONTENT);
     await wait(2600);
     check('skips when composer already has text', window.__log.submits.length === 0,
@@ -194,6 +198,7 @@ async function run() {
         window.document.getElementById('chat').appendChild(d);
       }
     });
+    window.eval(PANEL);
     window.eval(CONTENT);
     obs.observe(window.document.body, { childList: true, subtree: true });
     await wait(9000);
@@ -206,6 +211,7 @@ async function run() {
   /* 5. Re-arms after the conversation moves on -------------------------- */
   {
     const { window } = makePage();
+    window.eval(PANEL);
     window.eval(CONTENT);
     await wait(2600);
     const first = window.__log.submits.length;
@@ -235,6 +241,7 @@ async function run() {
     const d = window.document.createElement('div');
     d.innerHTML = '<span>Send a message to continue where it left off.</span>';
     window.document.getElementById('chat').appendChild(d);
+    window.eval(PANEL);
     window.eval(CONTENT);
     await wait(2600);
     check('ignores the continue line without the tool-call limit line',
@@ -246,6 +253,7 @@ async function run() {
   {
     const { window, input } = makePage({ richComposer: true });
     window.document.getElementById('send').remove();
+    window.eval(PANEL);
     window.eval(CONTENT);
     await wait(2600);
     const sends = window.__log.submits;
@@ -260,6 +268,7 @@ async function run() {
   /* 8. Notice flapping (detach/re-attach without a real turn change) ---- */
   {
     const { window } = makePage();
+    window.eval(PANEL);
     window.eval(CONTENT);
     await wait(2600); // first send happens here
     const first = window.__log.submits.length;
@@ -286,6 +295,7 @@ async function run() {
   /* 9. The task prompt covers the composer: click Keep working, then send */
   {
     const { window } = makePage({ taskPrompt: true });
+    window.eval(PANEL);
     window.eval(CONTENT);
     await wait(4000);
     const keeps = window.__log.keepClicks || 0;
@@ -299,6 +309,7 @@ async function run() {
   /* 10. No task prompt: nothing else gets clicked */
   {
     const { window } = makePage();
+    window.eval(PANEL);
     window.eval(CONTENT);
     await wait(3000);
     check('does not click anything when there is no task prompt',
@@ -318,6 +329,7 @@ async function run() {
     window.document.getElementById('strayKeep').addEventListener('click', () => {
       window.__log.strayClicks += 1;
     });
+    window.eval(PANEL);
     window.eval(CONTENT);
     await wait(3000);
     check('ignores a Keep working button outside the prompt',
@@ -330,6 +342,7 @@ async function run() {
   {
     const later = '<div class="msg agent">Done. The build passed.</div><div class="msg agent">Anything else?</div>';
     const { window } = makePage({ afterNotice: later, scrollable: true });
+    window.eval(PANEL);
     window.eval(CONTENT);
     await wait(3000);
     check('ignores a limit banner that is not the latest message',
@@ -340,6 +353,7 @@ async function run() {
   /* 13. Same, but the banner is the newest thing: it should fire */
   {
     const { window } = makePage({ scrollable: true });
+    window.eval(PANEL);
     window.eval(CONTENT);
     await wait(3000);
     check('still acts when the banner is the latest message',
@@ -350,6 +364,7 @@ async function run() {
   /* 14. Nothing new since the last send: do not send again */
   {
     const { window } = makePage({ scrollable: true });
+    window.eval(PANEL);
     window.eval(CONTENT);
     await wait(3000);
     const first = window.__log.submits.length;
@@ -376,6 +391,7 @@ async function run() {
     window.chrome.storage.local.get = (keys, cb) => cb({
       settings: { useKeepWorking: true, override: { selector: '#yes', x: null, y: null, text: 'Yes' } }
     });
+    window.eval(PANEL);
     window.eval(CONTENT);
     await wait(4000);
     check('uses the saved override selector when one exists',
@@ -397,10 +413,75 @@ async function run() {
     window.chrome.storage.local.get = (keys, cb) => cb({
       settings: { useKeepWorking: true, override: { selector: '', x: 0.5, y: 0.55, text: '' } }
     });
+    window.eval(PANEL);
     window.eval(CONTENT);
     await wait(4000);
     check('falls back to the stored position when no selector matches',
       (window.__log.coordClicks || 0) >= 1, `coordClicks=${window.__log.coordClicks}`);
+    window.close();
+  }
+
+  /* 17. The gear opens settings inside the pill, not in a separate popup */
+  {
+    const { window } = makePage();
+    window.eval(PANEL);
+    window.eval(CONTENT);
+    await wait(300);
+
+    const host = [...window.document.querySelectorAll('div')].find((el) => el.shadowRoot);
+    const sr = host && host.shadowRoot;
+    const before = sr ? !sr.querySelector('.settingsView').hidden : null;
+    if (sr) sr.querySelector('.gear').click();
+    await wait(300);
+
+    const view = sr && sr.querySelector('.settingsView');
+    const status = sr && sr.querySelector('.statusView');
+    const rows = sr ? sr.querySelectorAll('.settingsBody [data-key]').length : 0;
+    const dialogs = window.document.querySelectorAll('dialog:not(:empty)').length;
+
+    check('gear opens the settings view inside the pill', before === false && view && !view.hidden,
+      `closedFirst=${before === false} open=${!!view && !view.hidden}`);
+    check('settings replace the status view rather than stacking', !!status && status.hidden,
+      `statusHidden=${!!status && status.hidden}`);
+    check('pill settings are switches only, no popup window', rows === 6 && dialogs === 0,
+      `toggles=${rows} dialogs=${dialogs}`);
+    check('the gear reports its state to assistive tech',
+      sr && sr.querySelector('.gear').getAttribute('aria-expanded') === 'true',
+      `aria-expanded=${sr && sr.querySelector('.gear').getAttribute('aria-expanded')}`);
+    window.close();
+  }
+
+  /* 18. Flipping a switch in the pill is written to storage */
+  {
+    const { window, store } = makePage();
+    window.eval(PANEL);
+    window.eval(CONTENT);
+    await wait(300);
+    const sr = [...window.document.querySelectorAll('div')].find((el) => el.shadowRoot).shadowRoot;
+    sr.querySelector('.gear').click();
+    await wait(300);
+
+    const toggle = sr.querySelector('[data-key="useKeepWorking"]');
+    toggle.checked = false;
+    toggle.dispatchEvent(new window.Event('change'));
+    await wait(200);
+
+    check('a switch in the pill saves to storage', store.settings && store.settings.useKeepWorking === false,
+      `useKeepWorking=${store.settings && store.settings.useKeepWorking}`);
+    check('the other settings survive that write', store.settings && store.settings.message === 'continue',
+      `message=${store.settings && store.settings.message}`);
+    window.close();
+  }
+
+  /* 19. Auto-send off means the banner is left alone */
+  {
+    const { window } = makePage();
+    window.chrome.storage.local.get = (keys, cb) => cb({ settings: { enabled: false } });
+    window.eval(PANEL);
+    window.eval(CONTENT);
+    await wait(3000);
+    check('does nothing when auto-send is off', window.__log.submits.length === 0,
+      `sends=${window.__log.submits.length}`);
     window.close();
   }
 
