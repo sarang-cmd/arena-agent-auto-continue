@@ -43,7 +43,9 @@
           word. This extension types it for you, once per banner, and then leaves the page alone.
         </p>
         <div class="hero-actions">
-          <a class="btn btn-primary" href="https://github.com/sarang-cmd/baton/releases/latest">Download the extension</a>
+          <button class="btn btn-primary" type="button" id="downloadBtn" aria-haspopup="dialog">
+            Download the extension
+          </button>
           <a class="btn btn-ghost" href="#how">See what it matches</a>
         </div>
         <p class="hero-note">
@@ -117,8 +119,16 @@
             <dd>The line "send a message to continue" on its own is not enough. The words about the tool-call limit have to be present too, so ordinary chat text cannot trigger it.</dd>
           </div>
           <div>
+            <dt>when it stays quiet</dt>
+            <dd>A limit banner stays in the transcript after its turn. Baton only answers a banner that is the newest thing in the conversation, and only when the text has moved on since its last send.</dd>
+          </div>
+          <div>
             <dt>what it clears first</dt>
             <dd>Arena asks "Was this task successful?" in a panel that covers the message box. Baton clicks <strong>Keep working</strong>, waits for the box to come back, then types.</dd>
+          </div>
+          <div>
+            <dt>if the button moves</dt>
+            <dd>Pick the control once in the popup. Baton stores its selector and its position as a share of the window, so a resize does not throw it off.</dd>
           </div>
           <div>
             <dt>how it sends</dt>
@@ -300,6 +310,53 @@
     </div>
   </section>
 
+  <dialog id="downloadDialog" aria-labelledby="downloadTitle">
+    <div class="dl-head">
+      <h2 id="downloadTitle">Download Baton</h2>
+      <button class="dl-close" type="button" id="downloadClose" aria-label="Close">
+        <svg width="14" height="14" viewBox="0 0 14 14" aria-hidden="true" focusable="false">
+          <path d="M2 2l10 10M12 2L2 12" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+      </button>
+    </div>
+    <p class="dl-note">
+      Either way you get the same zip. Loading it unpacked takes about a minute.
+    </p>
+
+    <div class="dl-options">
+      <a class="dl-card" href="baton.zip" download id="directDownload">
+        <span class="dl-icon" aria-hidden="true">
+          <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
+            <path d="M10 3v9m0 0 3.5-3.5M10 12 6.5 8.5M4 15.5h12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <span class="dl-text">
+          <strong>Download directly</strong>
+          <span>From this site. Fastest, no redirect.</span>
+        </span>
+        <span class="dl-size">zip, about 20 KB</span>
+      </a>
+
+      <a class="dl-card" href="https://github.com/sarang-cmd/baton/releases/latest" target="_blank" rel="noopener" id="sourceDownload">
+        <span class="dl-icon" aria-hidden="true">
+          <svg width="17" height="17" viewBox="0 0 20 20" fill="none">
+            <path d="M7.5 4.5h-3v11h11v-3M12 4h4v4M16 4l-6.5 6.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>
+        <span class="dl-text">
+          <strong>Download from source</strong>
+          <span>Opens the release on GitHub in a new tab.</span>
+        </span>
+        <span class="dl-size">releases page</span>
+      </a>
+    </div>
+
+    <p class="dl-foot">
+      Read the code first? The <a href="https://github.com/sarang-cmd/baton">repository</a> is public
+      and MIT licensed.
+    </p>
+  </dialog>
+
 </main>
 
 <footer class="site-foot">
@@ -315,5 +372,6 @@
 </footer>
 
 <script src="demo.js"></script>
+<script src="download.js"></script>
 </body>
 </html>
