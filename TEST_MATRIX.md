@@ -52,6 +52,8 @@ five minute fix and a week of guessing.
 | D2 | Let a response finish, then press Refresh | `Decision: finished yes` with the marker that decided it | Detection: send me the report, it names the exact shape |
 | D3 | Press **Send a test completion event** | A notification appears | The worker or the permission is at fault, not detection |
 | D4 | Ask a question, watch the report while it runs | `finished no`, with the signal that kept it waiting | If it says finished mid answer, the busy marker is being misread |
+| D5 | Send a prompt and watch the poll list for the whole run | The list goes from one user message to an assistant message with pending true, then pending false | If the count never moves past one, `/api/chat` is not where the live transcript is, and the report proves it |
+| D6 | After a run, read the `Worker:` line | `a notification was created`, or the exact reason it was refused | Tells detection and delivery apart without guessing |
 
 ## What a passing run proves
 

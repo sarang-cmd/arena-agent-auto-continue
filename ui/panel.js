@@ -546,6 +546,10 @@
           ', parts ' + (a.partTypes || []).join(', ') +
           ', states ' + (a.partStates || []).map((s) => s || 'none').join(', '));
       }
+      if (d.dom) {
+        lines.push('The page itself: ' + (d.dom.stopControls ? 'a Stop control is showing (a run is active)'
+          : 'no Stop control') + ', ' + d.dom.streamingMarks + ' streaming marks');
+      }
       if (d.decision) {
         if (d.decision.error) {
           lines.push('Decision: ' + d.decision.error);
@@ -560,6 +564,25 @@
         lines.push('Events sent: ' + d.events.map((e) => e.type).join(', '));
       } else {
         lines.push('Events sent: none yet');
+      }
+      if (d.intake) {
+        const what = {
+          created: 'a notification was created',
+          'already-notified': 'refused: this turn was already notified',
+          'switched-off': 'refused: that event switch is off',
+          'modules-missing': 'refused: the notification modules did not load',
+          'create-failed': 'Chrome refused to create it'
+        }[d.intake.stage] || d.intake.stage;
+        lines.push('Worker: ' + what + (d.intake.error ? ' (' + d.intake.error + ')' : ''));
+      }
+      if (d.history && d.history.length) {
+        lines.push('Last ' + d.history.length + ' polls, newest last:');
+        for (const h of d.history.slice(-6)) {
+          lines.push('  ' + h.t + '  ' + h.n + ' messages, last ' + (h.lastRole || 'none') +
+            (h.assistant ? ', assistant pending ' + h.pending + ', ' + h.parts + ' parts' : ', no assistant message') +
+            (h.settled ? ', settled' : '') +
+            (h.out && h.out.length ? '  -> ' + h.out.join(', ') : ''));
+        }
       }
       return lines;
     }
