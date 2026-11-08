@@ -90,6 +90,12 @@ notification focuses the tab that holds that thread, and switches to it if it is
 The three toggles are independent. **Send a test notification** on the options page checks that the
 operating system is letting them through.
 
+**Diagnostics** on the same page shows what Baton actually saw on your last run: the chat id it found,
+the endpoint that answered, the last assistant message's part types and states, and the reason it did
+or did not call the response finished. It contains key names, types and lengths, never your text.
+**Send a test completion event** pushes a synthetic event through the same path, so a silent run can
+be narrowed down to either detection or delivery in one click.
+
 Supported modes are Agent, Coding, Direct and Side by side. A side-by-side turn produces one
 notification per model, because the two models finish at different times. Battle and modal turns are
 silent: there is no verified signal for them, so Baton does not guess.
@@ -199,7 +205,7 @@ PASS  two models and two turns are three separate notifications  - keys=3
 
 $ node --test test/notifications.test.js test/service-worker.test.js
 ...
-26/26 passed
+37/37 passed
 ```
 
 The screenshots in this README are regenerated with `node scripts/shots.js`, which needs

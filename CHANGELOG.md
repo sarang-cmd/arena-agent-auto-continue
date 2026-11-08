@@ -1,5 +1,29 @@
 # Changelog
 
+## 1.4.0, 7 November 2026
+
+- **Diagnosis first.** A new Diagnostics section on the settings page shows what Baton actually sees
+  from a run: which chat id it found and how, which endpoint answered, how many messages came back,
+  the last assistant message's part types and states, and why it did or did not decide the response
+  was finished. It holds key names, types, states and lengths, never text, a title or an id.
+- **Send a test completion event.** It pushes a synthetic `response_done` through the same intake as a
+  real one. If that notifies, the notification path works and the problem is detection; if it does
+  not, the worker is the problem. That distinction was invisible before, which is why a build that
+  never notified looked identical to one with a broken button.
+- Completion detection no longer depends on one shape. `metadata.pending`, `metadata.finishReason`,
+  `metadata.status` and per-part `state` values are all read, with streaming and pending states taking
+  precedence over done ones. A shape Baton does not recognise is left alone until the page has stopped
+  changing for six seconds, so an unknown protocol errs towards notifying rather than staying silent.
+- A message made only of reasoning and tool parts is a step on the way, not a finished response. The
+  agent produces several per turn, and notifying on those would be a notification every few seconds.
+- The chat id is found from any id-shaped path segment, and, when the address bar has none, from the
+  requests the page itself has already made. Before this, a route Baton did not recognise meant it
+  polled nothing and said nothing.
+- The poll falls back to the plain `/api/chat/<id>` when the parameterised form is not accepted, and
+  stops trying on 401 and 403 instead of hammering a signed-out tab.
+- Tests: 37 for the event layer, including the cases where a marker must win and where an unmarked
+  shape must wait for the page to settle.
+
 ## 1.3.1, 7 November 2026
 
 - **The toolbar button works again.** The notification modules were written for a page, where

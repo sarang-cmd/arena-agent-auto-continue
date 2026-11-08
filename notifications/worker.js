@@ -289,8 +289,39 @@
     if (threadTitles.size > 100) threadTitles.delete(threadTitles.keys().next().value);
   }
 
+  /* ------------------------------------------------------------ diagnostics */
+
+  /**
+   * The latest structural report from a page, kept where the settings page can
+   * read it. Storage, not a variable: the worker is torn down between events,
+   * and the report has to survive long enough to be looked at.
+   */
+  function noteDiag(report) {
+    if (!report) return;
+    try {
+      chrome.storage.session.set({ batonDiag: report });
+    } catch (_) {}
+  }
+
+  /**
+   * A synthetic completion, pushed through the same intake as a real one. It is
+   * how a user can tell "the notification path is broken" apart from "Arena's
+   * shape is not what Baton expects", which are very different problems.
+   */
+  function testEvent(cb) {
+    const event = {
+      type: Events.EVENTS.RESPONSE_DONE,
+      threadId: 'test',
+      turnId: 'test-' + Date.now(),
+      mode: 'agent',
+      timestamp: Date.now(),
+      signal: 'test'
+    };
+    intake(event, { threadTitle: 'Test notification' }, (ok) => { if (cb) cb(ok); });
+  }
+
   const api = { intake, installWebRequest, focusThread, targets, watching, stoppedByChat,
-                noteLimitOutcome, noteTitle, limitOutcome, threadTitles };
+                noteLimitOutcome, noteTitle, limitOutcome, threadTitles, noteDiag, testEvent };
   root.BatonWorker = api;
 
   // the evaluation intake is an extra: if Chrome refuses the webRequest
