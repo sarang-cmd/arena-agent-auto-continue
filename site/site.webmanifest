@@ -1,0 +1,15 @@
+{
+  "name": "Baton",
+  "short_name": "Baton",
+  "description": "Sends continue when the arena.ai agent reaches its tool-call limit for the turn.",
+  "start_url": "index.html",
+  "scope": ".",
+  "display": "browser",
+  "background_color": "#e9e6df",
+  "theme_color": "#e9e6df",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

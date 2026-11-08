@@ -1,5 +1,5 @@
-"""Generates the Baton icon set from one definition, so the toolbar, the popup,
-the site and the favicon are the same mark.
+"""Generates the Baton icon set from one definition, so the toolbar, the settings
+page, the favicon, the touch icon and the social card all carry the same mark.
 
 Stone gradient plate, two deep teal chevrons, one at reduced opacity to suggest
 the next turn. Rendered at 4x and downsampled for clean edges at 16px.
@@ -25,6 +25,14 @@ TEAL_SOFT = (122, 158, 160)
 
 SS = 4  # supersample factor
 SIZES = (16, 32, 48, 128)
+
+# same mark, at the sizes the web asks for: favicon, home screen, manifest
+WEB = (
+    (32, "icon-32.png"),
+    (180, "icon-180.png"),
+    (192, "icon-192.png"),
+    (512, "icon-512.png"),
+)
 
 
 def lerp(a, b, t):
@@ -129,6 +137,12 @@ def main():
         path = os.path.join(ICONS, f"icon{size}.png")
         with open(path, "wb") as fh:
             fh.write(png_bytes(img))
+        print("wrote", os.path.relpath(path, ROOT))
+
+    for size, name in WEB:
+        path = os.path.join(SITE, name)
+        with open(path, "wb") as fh:
+            fh.write(png_bytes(render(size)))
         print("wrote", os.path.relpath(path, ROOT))
 
     for dest in (os.path.join(ICONS, "icon.svg"), os.path.join(SITE, "icon.svg")):
