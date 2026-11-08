@@ -6,10 +6,11 @@ const DEFAULTS = {
   maxConsecutive: 30,
   message: 'continue',
   skipIfDraft: true,
+  useKeepWorking: true,
   showIndicator: true
 };
 
-const FIELDS = ['enabled', 'onlyVisibleTab', 'skipIfDraft', 'showIndicator', 'message', 'delayMs', 'maxConsecutive'];
+const FIELDS = ['enabled', 'onlyVisibleTab', 'useKeepWorking', 'skipIfDraft', 'showIndicator', 'message', 'delayMs', 'maxConsecutive'];
 const $ = (id) => document.getElementById(id);
 
 function load(cb) {
@@ -75,6 +76,8 @@ function renderStatus(settings, stats) {
   dot.classList.add('on');
   if (stats.hasNotice) {
     txt.innerHTML = 'Limit banner on screen. <b>Sending now</b>.';
+  } else if (stats.lastStatus && /Keep working/i.test(stats.lastStatus)) {
+    txt.innerHTML = `Cleared the task prompt. <b>Sending</b>.`;
   } else if (stats.lastStatus && /no composer|draft/i.test(stats.lastStatus)) {
     txt.innerHTML = `Watching. Last check: <b>${escapeHtml(stats.lastStatus)}</b>.`;
   } else {
