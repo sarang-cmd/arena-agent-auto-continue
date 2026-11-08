@@ -27,6 +27,15 @@ off still wants to know the run hit the limit.
 the worker whether auto-continue answered, so the E3 notification can say "answered automatically" or
 "waiting for you". It carries no text.
 
+**`notifications/*.js` resolve their global.** They used `window`, which does not exist in the
+service worker that `background.js` runs in. They now use `self` when it is there and `globalThis`
+otherwise, so one file loads in both places. See 1.3.1 in `CHANGELOG.md`: before this, the toolbar
+button did nothing.
+
+**`background.js` guards the notification import.** The `chrome.action.onClicked` listener is
+registered first, and `importScripts` sits in a `try`. Notifications are optional; the settings page
+is how a user turns them off, so it must never depend on them.
+
 **`content.js` starts a page observer** (`notifications/observe.js`) in `start()`. If it fails to
 load, the failure is swallowed: auto-continue keeps working with notifications absent.
 

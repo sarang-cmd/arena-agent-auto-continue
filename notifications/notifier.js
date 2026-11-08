@@ -8,6 +8,12 @@
  * because Chrome will keep refusing until the user changes it by hand.
  */
 (() => {
+  // The same four files are loaded twice: into a page as content scripts, and
+  // into the service worker through importScripts. A service worker has no
+  // `window`, so the shared global is resolved rather than assumed. Without
+  // this, importScripts threw and the toolbar button was dead.
+  const root = typeof self !== 'undefined' ? self : globalThis;
+
   const MAX_TITLE = 60;
   const TITLES = {
     response_done: 'Arena: response complete',
@@ -79,6 +85,6 @@
   }
 
   const api = { TITLES, compose, bodyFor, titleFor, tidyTitle, create, MAX_TITLE };
-  if (typeof window !== 'undefined') window.BatonNotifier = api;
+  root.BatonNotifier = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();
