@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.1.0, 8 November 2026
+
+- Fixed the false positive where a limit banner from an earlier turn was answered again. A banner now
+  only counts when it is the newest thing in the conversation, when the text has moved on since the
+  last send, and when the agent is not visibly working.
+- The send is confirmed: if neither the banner clears nor the conversation changes within six
+  seconds, the extension holds off for twenty rather than trying again.
+- Single flight for sends, so two ticks can never click the same control.
+- New target override. Pick the Keep working button on the page, or type a selector or an X and Y
+  percentage. The position is stored as a share of the window, so it survives a resize.
+- The on-page pill is rebuilt as a plate that expands on hover or keyboard focus, showing the state,
+  the last action and the session total.
+- The popup checks for a newer release and offers the zip and the notes directly.
+- The landing page asks where to download from: this site, or the GitHub release in a new tab.
+- Four new tests, nineteen in total.
+
 ## 1.0.2, 7 November 2026
 
 - Clears the "Was this task successful?" prompt before sending. The panel covers the message box, so
