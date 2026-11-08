@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.4.1, 7 November 2026
+
+- The Diagnostics report now shows the last twelve polls as a trajectory: message count, the role of
+  the last message, whether an assistant message exists at all, its pending flag and part count, and
+  whether it counted as settled. One paste then answers the question the single snapshot could not,
+  which is whether an assistant message ever appears in `/api/chat` while a run is happening.
+- The report also says what the worker did with the last event: created, refused as already notified,
+  refused as switched off, or refused by Chrome, with the reason. Seeing something and delivering it
+  are now visible in one place instead of two.
+- A structural "is the page busy" line: whether a control named Stop is on the page, and how many
+  elements are marked streaming. It is reported, never used to decide an event, so a wrong guess here
+  cannot raise a notification.
+- Polling tightens to one second while a run is in flight and drops back to 2.5 seconds when it is not,
+  so the pending flag going false is not missed between two lazy polls.
+- Verified from the captures, and now relied on: the in-flight assistant message in `/api/chat` carries
+  `metadata.pending: true`, and the same message carries `false` once committed. Every message in a
+  committed transcript has `pending: false`, including a last message that ends in tool calls, so
+  pending alone is not enough to call an answer finished, which is why answer text is also required.
+
 ## 1.4.0, 7 November 2026
 
 - **Diagnosis first.** A new Diagnostics section on the settings page shows what Baton actually sees

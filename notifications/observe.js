@@ -18,6 +18,7 @@
   const root = typeof self !== 'undefined' ? self : globalThis;
   const Events = root.BatonEvents;
   const POLL_MS = 2500;
+  const POLL_BUSY_MS = 1000;   // a run is in flight: watch it closely
   const POLL_HIDDEN_MS = 15000;
   // an unmarked shape has to look the same for this long before it counts as
   // finished, so a slow token does not notify mid-answer
@@ -39,6 +40,9 @@
   // diagnostics
   let diag = null;
   let lastDiagSent = 0;
+  const HISTORY = 12;
+  let history = [];
+  let lastBusy = false;
 
   const MODE_BY_SEGMENT = { agent: 'agent', code: 'coding', c: 'agent', chat: 'agent' };
   const UUID = /^[0-9a-f]{8,}(-[0-9a-f]{4,})*$/i;
@@ -79,6 +83,27 @@
       }
     } catch (_) {}
     return null;
+  }
+
+  /**
+   * Is the page visibly busy? Two structural checks, no prose: a control whose
+   * accessible name is Stop, and any element marked as streaming. Reported in
+   * the diagnostics only, never used to decide an event, so a wrong guess here
+   * cannot raise a notification.
+   */
+  function domActivity() {
+    try {
+      const controls = Array.from(document.querySelectorAll('button, [role="button"]'));
+      const stop = controls.filter((el) => {
+        const name = (el.getAttribute('aria-label') || el.title || el.textContent || '').trim();
+        return name.length <= 24 && /^stop\b/i.test(name);
+      }).length;
+      const streaming = document.querySelectorAll(
+        '[data-streaming="true"], [aria-busy="true"], [data-state="streaming"]').length;
+      return { stopControls: stop, streamingMarks: streaming };
+    } catch (_) {
+      return { stopControls: 0, streamingMarks: 0 };
+    }
   }
 
   function debug(entry) {
@@ -165,6 +190,7 @@
     if (!route.chatId) {
       chatId = null;
       previous = null;
+      history = [];
       diag = {
         at: Date.now(), page: location.pathname.slice(0, 80), route: { chatId: null, mode: null, from: null },
         poll: null, decision: null, events: []
@@ -221,6 +247,7 @@
       const doneEvent = events.find((e) => e.type === 'response_done');
       diag.messages = ((state && state.messages) || []).length;
       diag.shape = Events.shapeOf(state);
+      diag.dom = domActivity();
       diag.decision = {
         settled,
         unchangedMs: unchangedSince ? now - unchangedSince : 0,
@@ -229,6 +256,27 @@
         signal: doneEvent ? doneEvent.signal : null
       };
       if (!diag.events || !diag.events.length) diag.events = [];
+
+      // one line per poll, so a single paste shows the whole trajectory:
+      // does an assistant message ever appear, and does pending ever flip?
+      const last = ((state.messages || [])[((state.messages || []).length - 1)]) || null;
+      const assistants = (state.messages || []).filter((m) => m && m.role === 'assistant');
+      const tail = assistants.length ? assistants[assistants.length - 1] : null;
+      const tailMeta = (tail && tail.metadata) || {};
+      const busy = !!(tail && tailMeta.pending === true) || events.some((e) => e.type === 'question_asked');
+      lastBusy = busy;
+      history.push({
+        t: new Date(now).toLocaleTimeString(),
+        n: (state.messages || []).length,
+        lastRole: last ? last.role : null,
+        assistant: tail ? 1 : 0,
+        pending: tail ? (tailMeta.pending === undefined ? 'absent' : !!tailMeta.pending) : null,
+        parts: tail ? (tail.parts || []).length : 0,
+        settled,
+        out: events.map((e) => e.type)
+      });
+      if (history.length > HISTORY) history.shift();
+      diag.history = history.slice();
 
       previous = state;
       emit(events);
@@ -271,7 +319,9 @@
     if (timer) return;
     const tick = () => {
       pollOnce();
-      const wait = document.visibilityState === 'hidden' ? POLL_HIDDEN_MS : POLL_MS;
+      const wait = document.visibilityState === 'hidden'
+        ? POLL_HIDDEN_MS
+        : (lastBusy ? POLL_BUSY_MS : POLL_MS);
       timer = setTimeout(tick, wait);
     };
     tick();

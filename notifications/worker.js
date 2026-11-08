@@ -65,11 +65,20 @@
    * user opted in).
    */
   function intake(event, context, cb) {
-    if (!event || !Dedupe || !Notifier) { if (cb) cb(false); return; }
+    if (!event || !Dedupe || !Notifier) {
+      lastIntake = { at: Date.now(), type: event && event.type, stage: 'modules-missing' };
+      if (cb) cb(false); return;
+    }
     currentSettings((s) => {
-      if (!eventEnabled(s, event.type)) { if (cb) cb(false); return; }
+      if (!eventEnabled(s, event.type)) {
+        lastIntake = { at: Date.now(), type: event.type, stage: 'switched-off' };
+        if (cb) cb(false); return;
+      }
       Dedupe.claim(Events.keyFor(event), (first) => {
-        if (!first) { if (cb) cb(false); return; }
+        if (!first) {
+          lastIntake = { at: Date.now(), type: event.type, stage: 'already-notified' };
+          if (cb) cb(false); return;
+        }
         if (context.threadTitle) noteTitle(event.threadId, context.threadTitle);
         const continued = context.continued !== undefined
           ? context.continued
@@ -91,7 +100,14 @@
           priority: event.type === Events.EVENTS.TOOL_LIMIT ? 2 : 1,
           isClickable: true
         }, () => {
+          const err = chrome.runtime.lastError;
+          lastIntake = {
+            at: Date.now(), type: event.type, stage: err ? 'create-failed' : 'created',
+            error: err ? String(err.message || err).slice(0, 120) : null,
+            title: composed.title
+          };
           noteTarget(id, context);
+          if (err) { if (cb) cb(false); return; }
           if (cb) cb(true);
         });
       });
@@ -296,10 +312,16 @@
    * read it. Storage, not a variable: the worker is torn down between events,
    * and the report has to survive long enough to be looked at.
    */
+  // what happened to the most recent event, kept alongside the page report so
+  // one paste shows both halves: what was seen, and what was delivered
+  let lastIntake = null;
+
   function noteDiag(report) {
     if (!report) return;
     try {
-      chrome.storage.session.set({ batonDiag: report });
+      chrome.storage.session.set({
+        batonDiag: lastIntake ? { ...report, intake: lastIntake } : report
+      });
     } catch (_) {}
   }
 
