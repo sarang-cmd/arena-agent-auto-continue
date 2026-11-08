@@ -29,6 +29,9 @@
     useKeepWorking: true,
     requireFreshNotice: true,
     showIndicator: true,
+    // User override for the Keep working control: { selector, text, x, y }.
+    // x and y are fractions of the viewport, so they survive a resize.
+    override: null
   };
 
   // The exact notice Arena prints when the per-turn tool budget runs out.
@@ -270,6 +273,37 @@
     return text.length + ':' + hash;
   }
 
+  /* ------------------------------------------------------------- override */
+
+  function overrideCandidates(override) {
+    const out = [];
+    if (!override) return out;
+    if (override.selector) {
+      try {
+        for (const el of document.querySelectorAll(override.selector)) out.push(el);
+      } catch (_) { /* stored selector became invalid */ }
+    }
+    if (override.x != null && override.y != null) {
+      const el = document.elementFromPoint(
+        override.x * window.innerWidth,
+        override.y * window.innerHeight
+      );
+      if (el) out.push((el.closest && el.closest('button, [role="button"], a')) || el);
+    }
+    return out.filter((el) => el && el.isConnected);
+  }
+
+  /** Click the user's chosen target, if they set one. */
+  function clickOverride() {
+    const override = settings.override;
+    for (const el of overrideCandidates(override)) {
+      if (!isVisible(el)) continue;
+      el.click();
+      return override.selector ? 'override selector' : 'override position';
+    }
+    return null;
+  }
+
   /**
    * The "Keep working" control inside that prompt. Chosen by proximity to the
    * prompt, so a "Keep working" button elsewhere on the page is not clicked.
@@ -306,13 +340,20 @@
   async function dismissTaskPrompt() {
     const prompt = findTaskPrompt();
     if (!prompt) return false;
-    const button = findKeepWorkingButton(prompt);
-    if (!button) {
-      status('task prompt found, no Keep working button');
-      return false;
+    // A target the user set themselves wins, because it exists precisely for the
+    // case where the built-in selector no longer finds anything.
+    const how = clickOverride();
+    if (how) {
+      status(`clicked ${how}`);
+    } else {
+      const button = findKeepWorkingButton(prompt);
+      if (!button) {
+        status('task prompt found, no Keep working button');
+        return false;
+      }
+      button.click();
+      status('clicked Keep working');
     }
-    button.click();
-    status('clicked Keep working');
 
     const started = Date.now();
     while (Date.now() - started < 5000) {
@@ -484,6 +525,121 @@
       scope = scope.parentElement;
     }
     return false;
+  }
+
+  /* ---------------------------------------------------------------- picker */
+
+  /** A CSS path that resolves to one element, preferring the shortest form. */
+  function selectorFor(el) {
+    if (!el || el.nodeType !== Node.ELEMENT_NODE) return '';
+    const unique = (sel) => {
+      try { return document.querySelectorAll(sel).length === 1; } catch (_) { return false; }
+    };
+    const classes = [...(el.classList || [])]
+      .filter((c) => c.length < 40 && !/^[0-9]/.test(c))
+      .slice(0, 2)
+      .map((c) => '.' + CSS.escape(c))
+      .join('');
+    const tag = el.tagName.toLowerCase();
+
+    let sel = tag + classes;
+    if (unique(sel)) return sel;
+
+    // add the parent chain until it resolves to exactly one element
+    const parts = [];
+    let node = el;
+    while (node && node.nodeType === Node.ELEMENT_NODE && node !== document.documentElement) {
+      let part = node.tagName.toLowerCase();
+      const cls = [...(node.classList || [])].filter((c) => c.length < 40).slice(0, 1).map((c) => '.' + CSS.escape(c)).join('');
+      part += cls;
+      const siblings = node.parentElement
+        ? [...node.parentElement.children].filter((s) => s.tagName === node.tagName)
+        : [node];
+      if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(node) + 1})`;
+      parts.unshift(part);
+      const attempt = parts.join(' > ');
+      if (unique(attempt) && attempt.split('>').length >= 2) return attempt;
+      node = node.parentElement;
+    }
+    return parts.join(' > ');
+  }
+
+  let picker = null;
+
+  function stopPicker() {
+    if (!picker) return;
+    picker.box.remove();
+    picker.label.remove();
+    document.removeEventListener('mousemove', picker.onMove, true);
+    document.removeEventListener('click', picker.onClick, true);
+    document.removeEventListener('keydown', picker.onKey, true);
+    picker = null;
+    status('picker closed');
+  }
+
+  function startPicker() {
+    if (picker) return true;
+    const box = document.createElement('div');
+    box.style.cssText =
+      'position:fixed;z-index:2147483646;pointer-events:none;border:2px solid #2a5f63;' +
+      'background:rgba(42,95,99,.12);border-radius:6px;transition:all .06s linear;';
+    const label = document.createElement('div');
+    label.style.cssText =
+      'position:fixed;z-index:2147483647;pointer-events:none;background:#22211e;color:#f4f1ea;' +
+      'font:11px/1.5 ui-monospace,monospace;padding:3px 7px;border-radius:5px;max-width:60ch;' +
+      'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    document.documentElement.append(box, label);
+
+    const target = (e) => {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      if (!el || el === box || el === label) return null;
+      return (el.closest && el.closest('button, [role="button"], a')) || el;
+    };
+
+    const onMove = (e) => {
+      const el = target(e);
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      box.style.left = r.left + 'px';
+      box.style.top = r.top + 'px';
+      box.style.width = r.width + 'px';
+      box.style.height = r.height + 'px';
+      label.style.left = Math.min(r.left, window.innerWidth - 240) + 'px';
+      label.style.top = Math.max(4, r.top - 22) + 'px';
+      label.textContent = (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40) || el.tagName.toLowerCase();
+    };
+
+    const onClick = (e) => {
+      const el = target(e);
+      if (!el) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const override = {
+        selector: selectorFor(el),
+        text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60),
+        x: +(e.clientX / window.innerWidth).toFixed(4),
+        y: +(e.clientY / window.innerHeight).toFixed(4),
+        pickedAt: Date.now()
+      };
+      try {
+        chrome.storage.local.set({ settings: { ...settings, override } }, () => {
+          settings.override = override;
+          status('target saved');
+        });
+      } catch (_) {}
+      stopPicker();
+    };
+
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); stopPicker(); }
+    };
+
+    picker = { box, label, onMove, onClick, onKey };
+    document.addEventListener('mousemove', onMove, true);
+    document.addEventListener('click', onClick, true);
+    document.addEventListener('keydown', onKey, true);
+    status('pick the Keep working button');
+    return true;
   }
 
   /* ------------------------------------------------------------------ send */
@@ -868,11 +1024,14 @@
     try {
       chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
         if (!msg) return;
+        if (msg.type === 'baton-pick') { reply({ ok: startPicker() }); return; }
+        if (msg.type === 'baton-pick-cancel') { stopPicker(); reply({ ok: true }); return; }
         if (msg.type !== 'baton-status') return;
         reply({
           settings, consecutive, stopped, lastStatus,
           hasNotice: !!findLimitNotice(),
-          onAgentPage: onAgentPage()
+          onAgentPage: onAgentPage(),
+          picking: !!picker
         });
       });
     } catch (_) {}
