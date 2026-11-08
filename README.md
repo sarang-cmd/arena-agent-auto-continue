@@ -56,13 +56,43 @@ the setting does. A change made in one place appears in the other straight away,
 | Only when tab is visible | on | Skips background tabs so two tabs cannot both answer the agent. |
 | Skip if you have typed something | on | Your draft always wins. It never overwrites text already in the composer. |
 | Status pill on the page | on | The small indicator in the bottom right corner of the page. |
-| Notify when it pauses | on | A desktop notification when it hits the safety cap or steps back after a send. Asks for the notification permission the first time. |
+| Response complete | on | Notify when the agent finishes a response. |
+| Agent asks a question | on | Notify when the agent stops and waits for an answer from you. |
+| Tool-call limit | on | Notify when the run hits the limit, and say whether Baton answered it. |
+| Include text in notification | off | Adds a snippet to the body. Off means the body never contains model output. |
+| Notify when it pauses | on | Baton's own status message at the safety cap or after a send that changed nothing. |
 | Message | `continue` | The text it sends. |
 | Delay | `1200` ms | Wait after the banner appears, so the composer is ready. |
 | Safety cap | `30` | Pauses after this many consecutive sends until you reset the counter. |
 
 The pill also shows a session counter, and **Reset counter** clears both the counter and a paused
 state.
+
+## Notifications
+
+Three events, one notification each, whether or not Baton is sending:
+
+| Event | Title | Fires when |
+| --- | --- | --- |
+| Response complete | `Arena: response complete` | The last assistant message stops being pending and carries a `done` part |
+| Agent asks a question | `Arena: agent is asking you a question` | A `tool-ask_user` part goes from `input-available` to `output-available` |
+| Tool-call limit | `Arena: tool-call limit reached` | The limit banner appears, with a line saying whether auto-continue answered it |
+
+Each event fires once per turn, per thread, per model. The dedupe key is
+`threadId|turnId|type|model` and the keys live in `chrome.storage.session`, so they survive a reload
+of the tab but not a restart of the browser, and they are shared across tabs. The list is capped at
+400 keys, oldest pruned first.
+
+The body names the thread and the mode. It never contains the question, the answer, your prompt, a
+cookie or an account id, unless you switch **Include text in notification** on. Clicking a
+notification focuses the tab that holds that thread, and switches to it if it is in another window.
+
+The three toggles are independent. **Send a test notification** on the options page checks that the
+operating system is letting them through.
+
+Supported modes are Agent, Coding, Direct and Side by side. A side-by-side turn produces one
+notification per model, because the two models finish at different times. Battle and modal turns are
+silent: there is no verified signal for them, so Baton does not guess.
 
 ## How the detection works
 
@@ -118,14 +148,15 @@ old folder.
 
 ## Development
 
-The extension has no build step and no dependencies. `content.js`, `background.js`, `ui/panel.js` and
-the manifest are loaded directly by the browser.
+The extension has no build step for the browser, and no runtime dependencies. `content.js`,
+`background.js`, `notifications/*.js`, `ui/panel.js` and the manifest are loaded directly by the
+browser; `scripts/build.sh` only copies them into `dist/` and zips the result.
 
 ```bash
 git clone https://github.com/sarang-cmd/baton
 cd baton
 
-# run the jsdom test suite
+# run both suites: the notification layer, then the page behaviour
 npm install
 npm test
 
@@ -137,8 +168,10 @@ The tests simulate an arena.ai page in jsdom and check the behaviour that is eas
 one send per banner, no send without the banner, no overwriting a draft, no repeat sends when the
 banner never clears, re-arming for a later limit, flicker tolerance, the contenteditable path, the
 gear opening settings inside the pill, a switch in the pill reaching storage, two surfaces staying in
-step, search filtering the list, and the notification only being asked for when it is switched on
-that has no send button.
+step, and search filtering the list. The notification suite runs on Node's own test runner against
+recorded `/api/chat` and `/api/evaluation` responses under `test/fixtures/`, which
+`python3 scripts/make-fixtures.py` regenerates from the sanitised captures. Those fixtures carry no
+prompt, answer, key, cookie or account id, and `make-fixtures.py` fails the build if one appears.
 
 ```
 PASS  detects notice and sends exactly once  - sends=1
@@ -155,8 +188,18 @@ PASS  gear opens the settings view inside the pill  - closedFirst=true open=true
 PASS  pill settings are switches only, no popup window  - toggles=6 dialogs=0
 PASS  a switch in the pill saves to storage  - useKeepWorking=false
 PASS  does nothing when auto-send is off  - sends=0
+PASS  one limit banner emits exactly one tool_limit_reached event  - events=1
+PASS  the limit event and the send agree on the turn  - turnId=msg-00
+PASS  the first claim of an event is accepted  - first=true
+PASS  the second claim of the same event is refused  - second=false
+PASS  a third claim is still refused, as after a reload  - third=false
+PASS  two models and two turns are three separate notifications  - keys=3
 
-26/26 passed
+39/39 passed
+
+$ node --test test/notifications.test.js
+...
+22/22 passed
 ```
 
 The screenshots in this README are regenerated with `node scripts/shots.js`, which needs
@@ -165,8 +208,13 @@ The screenshots in this README are regenerated with `node scripts/shots.js`, whi
 ### Files
 
 ```
-manifest.json        Manifest V3, matches arena.ai, storage + activeTab
+manifest.json        Manifest V3, matches arena.ai, notifications + webRequest
 content.js           detection, composer insertion, guards, on-page pill
+notifications/events.js    the event rules, pure functions, no DOM or chrome
+notifications/observe.js   polls /api/chat, turns responses into events
+notifications/dedupe.js    once-per-turn keys, in chrome.storage.session
+notifications/notifier.js  wording and title truncation
+notifications/worker.js    intake, dedupe, click to focus, webRequest intake
 background.js        toolbar button opens settings, relays messages to the tab
 settings.html/js     the settings page
 ui/settings.js       the one settings store, read by every surface
@@ -174,7 +222,9 @@ ui/panel.js          the settings UI, mounted in the pill and on that page
 icons/               toolbar icons, generated by scripts/make-icons.py
 site/icon-*.png      the same mark at 32, 180, 192 and 512 px for the web
 site/                landing page, privacy and terms pages (static, no build)
-test/test.js         jsdom test suite
+test/test.js         page behaviour, jsdom
+test/notifications.test.js  the event rules, Node's test runner
+test/fixtures/       recorded Arena responses, regenerated by scripts/make-fixtures.py
 scripts/build.sh     packs the extension into dist/
 scripts/shots.js     regenerates docs/images
 scripts/make-icons.py      draws the icon at every size, plus the SVG
@@ -197,6 +247,14 @@ an interactive simulation of the console that uses the same banner wording the e
 - It is tested against a simulated page, not against a live Arena session. If Arena renames or
   restructures the banner, the extension stops sending rather than sending something wrong.
 - It does not work in Firefox or on mobile browsers.
+- **A response you stopped by hand may still notify as complete.** Arena shows a stopped turn in a way
+  that none of the recorded responses captured, so Baton suppresses the notification only when it sees
+  positive evidence of a stop. Otherwise it errs towards telling you, which is wrong in that one case.
+  This is marked unverified in `TEST_MATRIX.md`.
+- Notifications for Direct, Battle and Side by side are newer and thinner than the agent ones. Battle
+  and modal turns are deliberately silent.
+- Notifications need the `notifications` permission, and reading the evaluation message ids needs
+  `webRequest`. Both are declared at install; `CHANGES.md` says why.
 - If your agent has a per-turn limit counted server-side, sending `continue` costs you a new turn and
   counts against that. Reading Arena's own usage terms is on you.
 

@@ -31,6 +31,7 @@
     </a>
     <nav class="site-nav" aria-label="Main">
       <a href="#how">How it works</a>
+      <a href="#notifications">Notifications</a>
       <a href="#install">Install</a>
       <a href="#questions">Questions</a>
     </nav>
@@ -216,6 +217,65 @@
   </section>
 
   <hr class="rule" />
+
+  <section class="section" id="notifications">
+    <div class="wrap">
+      <div class="safety-intro">
+        <h2>Three things it will tell you about, if you are not looking.</h2>
+        <p class="lede">
+          Baton can leave a desktop notification for the three moments that matter in a run. Each one
+          fires once per turn, per thread, per model, so a reload or a second tab does not repeat it and
+          a side-by-side turn does not stay silent for the second model.
+        </p>
+        <p class="muted small">
+          The body names the event, the thread and the mode. It never contains the question, the answer
+          or your prompt unless you switch text on, and that switch is off. Clicking a notification
+          brings the tab holding that thread to the front.
+        </p>
+      </div>
+
+      <div class="table-plate">
+        <table class="settings">
+          <thead>
+            <tr>
+              <th scope="col">Event</th>
+              <th scope="col">Default</th>
+              <th scope="col">What you get</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td class="name">Response complete</td>
+              <td><code>on</code></td>
+              <td>The agent finished a response. The title carries the thread name, cut at 60 characters.</td>
+            </tr>
+            <tr>
+              <td class="name">Agent asks a question</td>
+              <td><code>on</code></td>
+              <td>It stopped and is waiting for you. Told from Arena's own tool call, not from the wording on the page.</td>
+            </tr>
+            <tr>
+              <td class="name">Tool-call limit reached</td>
+              <td><code>on</code></td>
+              <td>The run hit the limit, with a line saying whether Baton answered it. Useful with auto-send off.</td>
+            </tr>
+            <tr>
+              <td class="name">Include text in notification</td>
+              <td><code>off</code></td>
+              <td>Adds a snippet to the body. Off means no model output leaves the page through a notification.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="muted small" style="margin-top: 1.4rem">
+        One honest limit: if you stop a response by hand, Baton may still tell you it completed. Arena
+        shows a stopped turn in a way none of the recorded responses captured, so Baton only suppresses
+        the notification when it sees clear evidence of a stop. That case is marked unverified in the
+        manual test matrix in the repository.
+      </p>
+    </div>
+  </section>
 
   <section class="section" id="install">
     <div class="wrap">

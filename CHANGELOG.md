@@ -1,5 +1,28 @@
 # Changelog
 
+## 1.3.0, 7 November 2026
+
+- Notifications for three Arena events, one per turn however many tabs are open: a response
+  completing, the agent asking you a question, and a run hitting the tool-call limit. Each is a switch
+  of its own, all on by default.
+- The completion and question events read Arena's own chat response, so they are not guesses from the
+  page. A side-by-side turn notifies per model, because the two models finish at different times.
+- The limit notification says whether Baton answered it, which makes it useful with auto-send off.
+- Notifications are deduplicated by thread, turn, event and model in `chrome.storage.session`, so a
+  reload does not repeat one but a restart of the browser forgets them.
+- Clicking a notification brings the tab holding that thread to the front, switching windows if it
+  has to.
+- The body names the thread and the mode. Model output is never in it unless **Include text in
+  notification** is switched on, and that switch is off by default.
+- **Send a test notification** on the options page.
+- `webRequest` is now a declared permission, used only to read message ids from Arena's evaluation
+  requests. `notifications` moved from optional to required, since the three switches are on by
+  default. `CHANGES.md` lists both, and lists everything else this release touched.
+- Battle and modal turns are deliberately silent, and the tests grew to 39 plus a 22 case suite for
+  the event rules.
+- `scripts/build.sh` now fails if the manifest loads a file that did not make it into the zip. It
+  caught `notifications/observe.js` missing while this release was being packed.
+
 ## 1.2.1, 8 November 2026
 
 - The icon is now the same mark everywhere the product appears. The site's header was still drawing
