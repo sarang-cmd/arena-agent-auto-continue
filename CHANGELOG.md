@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.0.2, 7 November 2026
+
+- Clears the "Was this task successful?" prompt before sending. The panel covers the message box, so
+  the extension now clicks Keep working, waits for the box to come back, and then types.
+- New switch, Click Keep working first, on by default.
+- The Keep working button is matched by proximity to that panel, so a similar control elsewhere on
+  the page is not clicked.
+- Four new tests: the prompt flow, the no-prompt case, and the stray-button case.
+
 ## 1.0.1, 7 November 2026
 
 - Renamed to Baton. The extension id, storage keys and internal message names changed with it, so

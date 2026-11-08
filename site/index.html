@@ -11,10 +11,6 @@
 <meta property="og:type" content="website" />
 <link rel="icon" href="icon.svg" type="image/svg+xml" />
 <link rel="stylesheet" href="styles.css" />
-<script>
-  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
-</script>
-<script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
 
@@ -121,6 +117,10 @@
             <dd>The line "send a message to continue" on its own is not enough. The words about the tool-call limit have to be present too, so ordinary chat text cannot trigger it.</dd>
           </div>
           <div>
+            <dt>what it clears first</dt>
+            <dd>Arena asks "Was this task successful?" in a panel that covers the message box. Baton clicks <strong>Keep working</strong>, waits for the box to come back, then types.</dd>
+          </div>
+          <div>
             <dt>how it sends</dt>
             <dd>It fills the composer with a real input event and clicks the send button next to it. If there is no button, it presses Enter. Both paths are tested.</dd>
           </div>
@@ -162,6 +162,11 @@
               <td class="name">Delay before sending</td>
               <td><code>1200 ms</code></td>
               <td>Lets the page finish rendering the banner, so the composer is ready to take text.</td>
+            </tr>
+            <tr>
+              <td class="name">Click Keep working first</td>
+              <td><code>on</code></td>
+              <td>The task prompt sits on top of the composer. Without this, there is no box to type into.</td>
             </tr>
             <tr>
               <td class="name">Skip if the composer has text</td>
@@ -310,6 +315,5 @@
 </footer>
 
 <script src="demo.js"></script>
-<script type="module" src="speed-insights.js"></script>
 </body>
 </html>

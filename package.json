@@ -1,6 +1,6 @@
 {
   "name": "baton",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "private": true,
   "description": "Sends \"continue\" when the Arena agent hits its tool-call limit for the turn.",
   "license": "MIT",
@@ -15,8 +15,5 @@
   },
   "optionalDependencies": {
     "playwright-core": "^1.65.0"
-  },
-  "dependencies": {
-    "@vercel/speed-insights": "^2.1.0"
   }
 }
