@@ -16,14 +16,37 @@
     if (direct) direct.focus();
   };
 
-  const closeDialog = () => {
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+  let closing = false;
+
+  const finish = () => {
+    closing = false;
+    dialog.removeAttribute('data-closing');
     if (typeof dialog.close === 'function') dialog.close();
     else dialog.removeAttribute('open');
     open.focus();
   };
 
+  // Animate out, then close, so the sheet does not vanish mid-transition.
+  const closeDialog = () => {
+    if (closing) return;
+    if (reduce.matches || typeof dialog.close !== 'function') {
+      finish();
+      return;
+    }
+    closing = true;
+    dialog.setAttribute('data-closing', '');
+    setTimeout(finish, 190);
+  };
+
   open.addEventListener('click', openDialog);
   if (closeBtn) closeBtn.addEventListener('click', closeDialog);
+
+  // Escape is the browser's job, so take it over just long enough to animate.
+  dialog.addEventListener('cancel', (e) => {
+    e.preventDefault();
+    closeDialog();
+  });
 
   // clicking the backdrop closes it, which is what people expect of a sheet
   dialog.addEventListener('click', (e) => {
