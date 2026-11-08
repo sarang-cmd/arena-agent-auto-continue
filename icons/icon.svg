@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" role="img" aria-label="Baton">
+  <defs>
+    <linearGradient id="plate" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f4f2ec"/>
+      <stop offset="1" stop-color="#d6d1c6"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="9" fill="url(#plate)"/>
+  <rect x="0.5" y="0.5" width="31" height="31" rx="8.5" fill="none" stroke="#ffffff" stroke-opacity="0.55"/>
+  <path d="M8.4 11.6 L12 16 L8.4 20.4" fill="none" stroke="#7a9ea0" stroke-width="3.4"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M14.6 11.6 L18.2 16 L14.6 20.4" fill="none" stroke="#2a5f63" stroke-width="3.4"
+        stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
