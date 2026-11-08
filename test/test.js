@@ -326,6 +326,84 @@ async function run() {
     window.close();
   }
 
+  /* 12. A banner from an earlier turn must be ignored */
+  {
+    const later = '<div class="msg agent">Done. The build passed.</div><div class="msg agent">Anything else?</div>';
+    const { window } = makePage({ afterNotice: later, scrollable: true });
+    window.eval(CONTENT);
+    await wait(3000);
+    check('ignores a limit banner that is not the latest message',
+      window.__log.submits.length === 0, `sends=${window.__log.submits.length}`);
+    window.close();
+  }
+
+  /* 13. Same, but the banner is the newest thing: it should fire */
+  {
+    const { window } = makePage({ scrollable: true });
+    window.eval(CONTENT);
+    await wait(3000);
+    check('still acts when the banner is the latest message',
+      window.__log.submits.length === 1, `sends=${window.__log.submits.length}`);
+    window.close();
+  }
+
+  /* 14. Nothing new since the last send: do not send again */
+  {
+    const { window } = makePage({ scrollable: true });
+    window.eval(CONTENT);
+    await wait(3000);
+    const first = window.__log.submits.length;
+    // banner never clears and the transcript never changes
+    const chat = window.document.getElementById('chat');
+    const d = window.document.createElement('div');
+    d.id = 'notice';
+    d.innerHTML = `<span>${LIMIT_LINE}</span>`;
+    chat.appendChild(d);
+    await wait(9000);
+    check('does not resend when no new agent output has appeared',
+      window.__log.submits.length === first, `sends=${window.__log.submits.length} (first=${first})`);
+    window.close();
+  }
+
+  /* 15. A user picked override is clicked instead of the built-in selector */
+  {
+    const { window } = makePage({ taskPrompt: true });
+    // point the override at the Yes button to prove the override wins
+    window.__log.overrideClicks = 0;
+    window.document.getElementById('yes').addEventListener('click', () => {
+      window.__log.overrideClicks += 1;
+    });
+    window.chrome.storage.local.get = (keys, cb) => cb({
+      settings: { useKeepWorking: true, override: { selector: '#yes', x: null, y: null, text: 'Yes' } }
+    });
+    window.eval(CONTENT);
+    await wait(4000);
+    check('uses the saved override selector when one exists',
+      (window.__log.overrideClicks || 0) === 1, `overrideClicks=${window.__log.overrideClicks}`);
+    window.close();
+  }
+
+  /* 16. Coordinate fallback clicks whatever is at that share of the window */
+  {
+    const { window } = makePage({ taskPrompt: true });
+    window.__log.coordClicks = 0;
+    const keep = window.document.getElementById('keep');
+    keep.addEventListener('click', () => { window.__log.coordClicks += 1; });
+    // elementFromPoint is not implemented in jsdom, so provide the mapping the
+    // content script uses: a share of the window resolves to the Keep button.
+    window.document.elementFromPoint = (x, y) => {
+      return x > 0 && y > 0 ? keep : null;
+    };
+    window.chrome.storage.local.get = (keys, cb) => cb({
+      settings: { useKeepWorking: true, override: { selector: '', x: 0.5, y: 0.55, text: '' } }
+    });
+    window.eval(CONTENT);
+    await wait(4000);
+    check('falls back to the stored position when no selector matches',
+      (window.__log.coordClicks || 0) >= 1, `coordClicks=${window.__log.coordClicks}`);
+    window.close();
+  }
+
   const failed = results.filter((r) => !r.pass);
   console.log(`\n${results.length - failed.length}/${results.length} passed`);
   process.exit(failed.length ? 1 : 0);
