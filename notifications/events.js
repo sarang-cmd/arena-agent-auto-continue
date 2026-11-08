@@ -17,6 +17,12 @@
  * event still dedupes across reloads.
  */
 (() => {
+  // The same four files are loaded twice: into a page as content scripts, and
+  // into the service worker through importScripts. A service worker has no
+  // `window`, so the shared global is resolved rather than assumed. Without
+  // this, importScripts threw and the toolbar button was dead.
+  const root = typeof self !== 'undefined' ? self : globalThis;
+
   const EVENTS = {
     RESPONSE_DONE: 'response_done',
     QUESTION_ASKED: 'question_asked',
@@ -272,6 +278,6 @@
     keyFor
   };
 
-  if (typeof window !== 'undefined') window.BatonEvents = api;
+  root.BatonEvents = api;
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
 })();

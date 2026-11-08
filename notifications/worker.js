@@ -13,9 +13,15 @@
  * nothing is sent anywhere else.
  */
 (() => {
-  const Events = window.BatonEvents;
-  const Dedupe = window.BatonDedupe;
-  const Notifier = window.BatonNotifier;
+  // The same four files are loaded twice: into a page as content scripts, and
+  // into the service worker through importScripts. A service worker has no
+  // `window`, so the shared global is resolved rather than assumed. Without
+  // this, importScripts threw and the toolbar button was dead.
+  const root = typeof self !== 'undefined' ? self : globalThis;
+
+  const Events = root.BatonEvents;
+  const Dedupe = root.BatonDedupe;
+  const Notifier = root.BatonNotifier;
 
   const EVAL_PREFIX = '/nextjs-api/stream/create-evaluation';
   const STOP_PREFIX = '/nextjs-api/stream/stop/';
@@ -285,7 +291,11 @@
 
   const api = { intake, installWebRequest, focusThread, targets, watching, stoppedByChat,
                 noteLimitOutcome, noteTitle, limitOutcome, threadTitles };
-  window.BatonWorker = api;
+  root.BatonWorker = api;
 
-  installWebRequest();
+  // the evaluation intake is an extra: if Chrome refuses the webRequest
+  // listener, notifications for chat turns must still work
+  try {
+    installWebRequest();
+  } catch (_) {}
 })();

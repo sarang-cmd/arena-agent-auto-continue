@@ -1,5 +1,22 @@
 # Changelog
 
+## 1.3.1, 7 November 2026
+
+- **The toolbar button works again.** The notification modules were written for a page, where
+  `window` exists, but `background.js` loads them into a service worker, where it does not. The import
+  threw, the worker died before it registered the click handler, and clicking the Baton icon did
+  nothing at all. It was the one symptom a user meets first, and the page tests could not see it
+  because they all run inside jsdom, where `window` is there.
+- The modules now resolve a shared global instead of assuming one, so the same files load both as
+  content scripts and into the worker.
+- `background.js` registers the toolbar button before it loads anything else, and wraps the import in
+  a guard. A broken notification module can no longer take the settings page down with it.
+- Four tests that run `background.js` in a context with `self` and `chrome` but no `window` and no
+  `document`, so this class of bug fails the build instead of the install. They check that the click
+  handler registers, that clicking opens the settings page, and that a module which throws on load
+  still leaves the button working.
+- `npm test` runs them, and `scripts/build.sh` was unchanged.
+
 ## 1.3.0, 7 November 2026
 
 - Notifications for three Arena events, one per turn however many tabs are open: a response

@@ -12,17 +12,29 @@
  */
 const ARENA = /^https:\/\/([a-z0-9-]+\.)?arena\.ai\//i;
 
-// the notification stack: pure event layer, dedupe, wording, and the worker
-importScripts(
-  'notifications/events.js',
-  'notifications/dedupe.js',
-  'notifications/notifier.js',
-  'notifications/worker.js'
-);
+// The toolbar button is registered before anything else, and the notification
+// stack is loaded afterwards inside a guard. Those two must not be able to take
+// each other down: a module that throws while loading used to kill the whole
+// worker, and the button then did nothing at all when clicked.
+let bootError = null;
 
 chrome.action.onClicked.addListener(() => {
   chrome.tabs.create({ url: chrome.runtime.getURL('settings.html') });
 });
+
+try {
+  // pure event layer, dedupe, wording, and the worker
+  importScripts(
+    'notifications/events.js',
+    'notifications/dedupe.js',
+    'notifications/notifier.js',
+    'notifications/worker.js'
+  );
+} catch (err) {
+  // notifications are optional; auto-continue and the settings page are not
+  bootError = String((err && err.message) || err);
+  console.error('Baton: notifications did not load:', bootError);
+}
 
 function activeArenaTab(cb) {
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -77,10 +89,16 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     return true;
   }
 
+  if (msg.type === 'baton-boot') {
+    // lets the options page say plainly when the notification stack failed
+    reply({ ok: true, version: chrome.runtime.getManifest().version, error: bootError });
+    return true;
+  }
+
   if (msg.type === 'baton-event') {
     const events = Array.isArray(msg.events) ? msg.events : [];
     const worker = self.BatonWorker;
-    if (!worker) { reply({ ok: false, reason: 'no-worker' }); return; }
+    if (!worker) { reply({ ok: false, reason: 'no-worker', error: bootError }); return; }
     let notified = 0;
     let pending = events.length;
     if (!pending) { reply({ ok: true, notified: 0 }); return; }
