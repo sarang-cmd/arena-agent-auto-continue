@@ -2,4 +2,6 @@ node_modules/
 dist/
 .DS_Store
 *.zip
+# the landing page's direct download serves this one
+!site/baton.zip
 npm-debug.log*
