@@ -42,6 +42,7 @@ Open the toolbar icon on any arena.ai page.
 | Setting | Default | What it does |
 | --- | --- | --- |
 | Auto-send | on | The master switch. |
+| Click Keep working first | on | The "Was this task successful?" panel covers the message box, so it is dismissed before typing. |
 | Only when tab is visible | on | Skips background tabs so two tabs cannot both answer the agent. |
 | Skip if you have typed something | on | Your draft always wins. It never overwrites text already in the composer. |
 | Status pill on the page | on | The small indicator in the bottom right corner of the page. |
@@ -68,6 +69,10 @@ A few details that matter in practice:
 - **One send per occurrence.** After a send the extension disarms until the banner has been gone for
   a clear window, and identical banner text is ignored for 6 seconds. Re-renders that flicker the
   banner do not produce a second message.
+- **The task prompt is cleared first.** After the banner, Arena shows a "Was this task successful?"
+  panel with Yes, No and Keep working, and it sits on top of the message box. The extension clicks
+  Keep working, waits for the prompt to close, and only then types. The button is chosen by proximity
+  to that panel, so a "Keep working" control elsewhere on the page is left alone.
 - **Sending uses real events.** It sets the value through the native setter (or `execCommand` in a
   contenteditable), dispatches input events, then clicks the send button or presses Enter.
 
