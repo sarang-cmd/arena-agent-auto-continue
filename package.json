@@ -1,6 +1,6 @@
 {
   "name": "baton",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "private": true,
   "description": "Sends \"continue\" when the Arena agent hits its tool-call limit for the turn.",
   "license": "MIT",

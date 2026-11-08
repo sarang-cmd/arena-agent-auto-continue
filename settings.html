@@ -54,6 +54,16 @@
   .card .panel .track::after { background: var(--raised); box-shadow: 2px 2px 5px rgba(150,143,128,.35); }
   .card .panel .switch input:checked + .track { background: var(--accent); }
   .card .panel .switch input:checked + .track::after { background: #f6f4ef; }
+  .card .panel .search {
+    background: var(--sunk);
+    border-color: transparent;
+    color: var(--muted);
+    box-shadow: inset 2px 2px 5px rgba(150,143,128,.35);
+  }
+  .card .panel .search:focus-within { border-color: var(--accent); }
+  .card .panel .search input { color: var(--ink); }
+  .card .panel .search input::placeholder { color: #7a766e; }
+  .card .panel .noresults { color: var(--muted); }
   .card .panel .field {
     background: var(--sunk); color: var(--ink);
     border: 0; box-shadow: inset 2px 2px 5px rgba(150,143,128,.35);
@@ -87,6 +97,7 @@
     </p>
   </div>
 
+  <script src="ui/settings.js"></script>
   <script src="ui/panel.js"></script>
   <script src="settings.js"></script>
 </body>

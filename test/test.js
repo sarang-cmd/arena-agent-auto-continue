@@ -16,6 +16,7 @@ try {
   process.exit(1);
 }
 
+const STORE = fs.readFileSync(path.join(__dirname, '..', 'ui', 'settings.js'), 'utf8');
 const PANEL = fs.readFileSync(path.join(__dirname, '..', 'ui', 'panel.js'), 'utf8');
 const CONTENT = fs.readFileSync(path.join(__dirname, '..', 'content.js'), 'utf8');
 
@@ -79,17 +80,30 @@ function makePage({ withNotice = true, draft = '', richComposer = false, taskPro
     return { width: 0, height: 0, top: 0, bottom: 0, left: 0, right: 0, x: 0, y: 0 };
   };
 
-  // Minimal chrome.storage stub (in-memory, synchronous-ish).
+  // Minimal chrome.storage stub (in-memory), including onChanged, because the
+  // settings store relies on it to keep two open surfaces in step.
   const store = {};
+  const changeListeners = [];
+  window.__messages = [];
   window.chrome = {
     storage: {
       local: {
         get: (keys, cb) => cb({ settings: store.settings }),
-        set: (obj, cb) => { Object.assign(store, obj); cb && cb(); }
+        set: (obj, cb) => {
+          const changes = {};
+          for (const k of Object.keys(obj)) changes[k] = { oldValue: store[k], newValue: obj[k] };
+          Object.assign(store, obj);
+          if (cb) cb();
+          changeListeners.forEach((fn) => fn(changes, 'local'));
+        }
       },
-      onChanged: { addListener: () => {} }
+      onChanged: { addListener: (fn) => changeListeners.push(fn) }
     },
-    runtime: { onMessage: { addListener: () => {} }, lastError: null }
+    runtime: {
+      onMessage: { addListener: () => {} },
+      lastError: null,
+      sendMessage: (msg) => { window.__messages.push(msg); }
+    }
   };
 
   // Record what happens in the composer.
@@ -155,6 +169,7 @@ async function run() {
   /* 1. Fires once when the exact notice appears ------------------------- */
   {
     const { window, input } = makePage();
+    window.eval(STORE);
     window.eval(PANEL);
     window.eval(CONTENT);
     await wait(2600); // loadSettings → start → tick → delay(1200)
@@ -167,6 +182,7 @@ async function run() {
   /* 2. Does not fire when there is no notice ---------------------------- */
   {
     const { window } = makePage({ withNotice: false });
+    window.eval(STORE);
     window.eval(PANEL);
     window.eval(CONTENT);
     await wait(2600);
@@ -178,6 +194,7 @@ async function run() {
   /* 3. Never overwrites a draft ----------------------------------------- */
   {
     const { window } = makePage({ draft: 'my half-written prompt' });
+    window.eval(STORE);
     window.eval(PANEL);
     window.eval(CONTENT);
     await wait(2600);
@@ -198,6 +215,7 @@ async function run() {
         window.document.getElementById('chat').appendChild(d);
       }
     });
+    window.eval(STORE);
     window.eval(PANEL);
     window.eval(CONTENT);
     obs.observe(window.document.body, { childList: true, subtree: true });
@@ -211,6 +229,7 @@ async function run() {
   /* 5. Re-arms after the conversation moves on -------------------------- */
   {
     const { window } = makePage();
+    window.eval(STORE);
     window.eval(PANEL);
     window.eval(CONTENT);
     await wait(2600);
@@ -241,6 +260,7 @@ async function run() {
     const d = window.document.createElement('div');
     d.innerHTML = '<span>Send a message to continue where it left off.</span>';
     window.document.getElementById('chat').appendChild(d);
+    window.eval(STORE);
     window.eval(PANEL);
     window.eval(CONTENT);
     await wait(2600);
@@ -253,6 +273,7 @@ async function run() {
   {
     const { window, input } = makePage({ richComposer: true });
     window.document.getElementById('send').remove();
+    window.eval(STORE);
     window.eval(PANEL);
     window.eval(CONTENT);
     await wait(2600);
@@ -268,6 +289,7 @@ async function run() {
   /* 8. Notice flapping (detach/re-attach without a real turn change) ---- */
   {
     const { window } = makePage();
+    window.eval(STORE);
     window.eval(PANEL);
     window.eval(CONTENT);
     await wait(2600); // first send happens here
@@ -295,6 +317,7 @@ async function run() {
   /* 9. The task prompt covers the composer: click Keep working, then send */
   {
     const { window } = makePage({ taskPrompt: true });
+    window.eval(STORE);
     window.eval(PANEL);
     window.eval(CONTENT);
     await wait(4000);
@@ -309,6 +332,7 @@ async function run() {
   /* 10. No task prompt: nothing else gets clicked */
   {
     const { window } = makePage();
+    window.eval(STORE);
     window.eval(PANEL);
     window.eval(CONTENT);
     await wait(3000);
@@ -329,6 +353,7 @@ async function run() {
     window.document.getElementById('strayKeep').addEventListener('click', () => {
       window.__log.strayClicks += 1;
     });
+    window.eval(STORE);
     window.eval(PANEL);
     window.eval(CONTENT);
     await wait(3000);
@@ -342,6 +367,7 @@ async function run() {
   {
     const later = '<div class="msg agent">Done. The build passed.</div><div class="msg agent">Anything else?</div>';
     const { window } = makePage({ afterNotice: later, scrollable: true });
+    window.eval(STORE);
     window.eval(PANEL);
     window.eval(CONTENT);
     await wait(3000);
@@ -353,6 +379,7 @@ async function run() {
   /* 13. Same, but the banner is the newest thing: it should fire */
   {
     const { window } = makePage({ scrollable: true });
+    window.eval(STORE);
     window.eval(PANEL);
     window.eval(CONTENT);
     await wait(3000);
@@ -364,6 +391,7 @@ async function run() {
   /* 14. Nothing new since the last send: do not send again */
   {
     const { window } = makePage({ scrollable: true });
+    window.eval(STORE);
     window.eval(PANEL);
     window.eval(CONTENT);
     await wait(3000);
@@ -391,6 +419,7 @@ async function run() {
     window.chrome.storage.local.get = (keys, cb) => cb({
       settings: { useKeepWorking: true, override: { selector: '#yes', x: null, y: null, text: 'Yes' } }
     });
+    window.eval(STORE);
     window.eval(PANEL);
     window.eval(CONTENT);
     await wait(4000);
@@ -413,6 +442,7 @@ async function run() {
     window.chrome.storage.local.get = (keys, cb) => cb({
       settings: { useKeepWorking: true, override: { selector: '', x: 0.5, y: 0.55, text: '' } }
     });
+    window.eval(STORE);
     window.eval(PANEL);
     window.eval(CONTENT);
     await wait(4000);
@@ -424,6 +454,7 @@ async function run() {
   /* 17. The gear opens settings inside the pill, not in a separate popup */
   {
     const { window } = makePage();
+    window.eval(STORE);
     window.eval(PANEL);
     window.eval(CONTENT);
     await wait(300);
@@ -454,6 +485,7 @@ async function run() {
   /* 18. Flipping a switch in the pill is written to storage */
   {
     const { window, store } = makePage();
+    window.eval(STORE);
     window.eval(PANEL);
     window.eval(CONTENT);
     await wait(300);
@@ -477,11 +509,126 @@ async function run() {
   {
     const { window } = makePage();
     window.chrome.storage.local.get = (keys, cb) => cb({ settings: { enabled: false } });
+    window.eval(STORE);
     window.eval(PANEL);
     window.eval(CONTENT);
     await wait(3000);
     check('does nothing when auto-send is off', window.__log.submits.length === 0,
       `sends=${window.__log.submits.length}`);
+    window.close();
+  }
+
+  /* 20. A change made somewhere else reaches an open panel */
+  {
+    const { window } = makePage();
+    window.eval(STORE);
+    window.eval(PANEL);
+    window.eval(CONTENT);
+    await wait(200);
+
+    const mounted = await window.BatonPanel.mount(window.document.body, { compact: false });
+    await wait(100);
+
+    // another surface (the pill on the page, or another tab) writes this
+    window.chrome.storage.local.set({ settings: { ...window.BatonSettings.get(), message: 'carry on' } });
+    await wait(150);
+
+    const field = window.document.getElementById('baton-message');
+    check('a write from another surface shows up in an open panel',
+      field && field.value === 'carry on', `field=${field && field.value}`);
+    window.close();
+  }
+
+  /* 21. Two surfaces do not overwrite each other's keys */
+  {
+    const { window, store } = makePage();
+    window.eval(STORE);
+    window.eval(PANEL);
+    window.eval(CONTENT);
+    await wait(200);
+
+    window.BatonPanel.mount(window.document.body, { compact: false });
+    await wait(100);
+
+    // another surface changes the message...
+    window.chrome.storage.local.set({ settings: { ...window.BatonSettings.get(), message: 'next' } });
+    await wait(100);
+    // ...and then this panel flips a switch, which used to write back its whole
+    // stale copy and undo the message change
+    const toggle = window.document.getElementById('baton-skipIfDraft');
+    toggle.checked = false;
+    toggle.dispatchEvent(new window.Event('change'));
+    await wait(200);
+
+    check('a switch write keeps a key another surface just changed',
+      store.settings.message === 'next' && store.settings.skipIfDraft === false,
+      `message=${store.settings.message} skipIfDraft=${store.settings.skipIfDraft}`);
+    window.close();
+  }
+
+  /* 22. Search narrows the list and says so when nothing matches */
+  {
+    const { window } = makePage();
+    window.eval(STORE);
+    window.eval(PANEL);
+    window.eval(CONTENT);
+    await wait(200);
+
+    window.BatonPanel.mount(window.document.body, { compact: false });
+    await wait(150);
+
+    const search = window.document.getElementById('baton-search');
+    const rows = () => [...window.document.querySelectorAll('.row')];
+    const visible = () => rows().filter((r) => !r.hidden).length;
+    const before = visible();
+
+    search.value = 'cap';
+    search.dispatchEvent(new window.Event('input'));
+    const after = visible();
+    const labels = rows().filter((r) => !r.hidden).map((r) => r.textContent.trim().split('\n')[0]);
+
+    search.value = 'zzzz';
+    search.dispatchEvent(new window.Event('input'));
+    const none = visible();
+    const empty = window.document.getElementById('baton-noresults');
+
+    check('search narrows the settings list',
+      before === 10 && after === 1 && /Safety cap/.test(labels[0]),
+      `rows ${before} -> ${after} (${labels.join(', ')})`);
+    check('an empty search result is stated, not left blank',
+      none === 0 && empty && !empty.hidden, `visible=${none} notice=${empty && !empty.hidden}`);
+    window.close();
+  }
+
+  /* 23. Hitting the safety cap asks for a notification */
+  {
+    const { window } = makePage();
+    window.chrome.storage.local.get = (keys, cb) => cb({
+      settings: { maxConsecutive: 1, delayMs: 50, cooldownMs: 50 }
+    });
+    window.eval(STORE);
+    window.eval(PANEL);
+    window.eval(CONTENT);
+    await wait(3000);
+    const asked = (window.__messages || []).filter((m) => m && m.type === 'baton-notify');
+    check('reaching the safety cap asks for a notification',
+      asked.length === 1, `notifications=${asked.length}`);
+    window.close();
+  }
+
+  /* 24. No notification when the user turned them off */
+  {
+    const { window } = makePage();
+    window.chrome.storage.local.get = (keys, cb) => cb({
+      settings: { maxConsecutive: 1, notifyOnPause: false, delayMs: 50, cooldownMs: 50 }
+    });
+    window.eval(STORE);
+    window.eval(PANEL);
+    window.eval(CONTENT);
+    await wait(3000);
+    const asked = (window.__messages || []).filter((m) => m && m.type === 'baton-notify');
+    check('respects the notification switch when it is off', asked.length === 0,
+      `notifications=${asked.length}`);
     window.close();
   }
 

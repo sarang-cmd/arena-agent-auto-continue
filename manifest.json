@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Baton",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Sends \"continue\" when the Arena agent hits its tool-call limit for the turn.",
   "permissions": [
     "storage",
@@ -34,6 +34,7 @@
         "https://*.arena.ai/*"
       ],
       "js": [
+        "ui/settings.js",
         "ui/panel.js",
         "content.js"
       ],
@@ -43,5 +44,8 @@
   ],
   "background": {
     "service_worker": "background.js"
-  }
+  },
+  "optional_permissions": [
+    "notifications"
+  ]
 }

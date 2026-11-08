@@ -9,30 +9,27 @@
  * in either place is the same change. Nothing here needs a background page.
  */
 (() => {
-  const DEFAULTS = {
-    enabled: true,
-    onlyVisibleTab: true,
-    delayMs: 1200,
-    cooldownMs: 2500,
-    maxConsecutive: 30,
-    message: 'continue',
-    skipIfDraft: true,
-    useKeepWorking: true,
-    requireFreshNotice: true,
-    showIndicator: true,
-    override: null
-  };
+  // one store, shared with the content script and any other open surface
+  const store = window.BatonSettings;
+  if (!store) {
+    console.error('Baton: ui/settings.js has to load before ui/panel.js');
+    return;
+  }
+  const DEFAULTS = store.DEFAULTS;
 
+  // [key, label, hint, kind, group]. The pill only carries the first group, so
+  // it stays six rows instead of scrolling.
   const FIELDS = [
-    ['enabled', 'Auto-send', 'Answers the limit banner', 'switch'],
-    ['requireFreshNotice', 'Only act on a fresh limit', 'Ignores banners left in the history', 'switch'],
-    ['useKeepWorking', 'Click Keep working first', 'Clears the task prompt over the message box', 'switch'],
-    ['skipIfDraft', 'Skip if you have typed something', 'Your draft always wins', 'switch'],
-    ['onlyVisibleTab', 'Only when tab is visible', 'Stops two tabs answering at once', 'switch'],
-    ['showIndicator', 'Show this pill on the page', 'Turn off when it gets in the way', 'switch'],
-    ['message', 'Message', null, 'text'],
-    ['delayMs', 'Delay', 'Milliseconds before sending', 'number'],
-    ['maxConsecutive', 'Safety cap', 'Pauses after this many sends', 'number']
+    ['enabled', 'Auto-send', 'Answers the limit banner', 'switch', 'behaviour'],
+    ['requireFreshNotice', 'Only act on a fresh limit', 'Ignores banners left in the history', 'switch', 'behaviour'],
+    ['useKeepWorking', 'Click Keep working first', 'Clears the task prompt over the message box', 'switch', 'behaviour'],
+    ['skipIfDraft', 'Skip if you have typed something', 'Your draft always wins', 'switch', 'behaviour'],
+    ['onlyVisibleTab', 'Only when tab is visible', 'Stops two tabs answering at once', 'switch', 'behaviour'],
+    ['showIndicator', 'Show this pill on the page', 'Turn off when it gets in the way', 'switch', 'behaviour'],
+    ['message', 'Message', 'What it types', 'text', 'behaviour'],
+    ['delayMs', 'Delay', 'Milliseconds before sending', 'number', 'behaviour'],
+    ['maxConsecutive', 'Safety cap', 'Pauses after this many sends', 'number', 'behaviour'],
+    ['notifyOnPause', 'Notify when it pauses', 'A desktop notification at the safety cap', 'switch', 'alerts']
   ];
 
   const CSS = `
@@ -118,6 +115,35 @@
     .field:focus-visible { outline: 2px solid #7fb3b7; outline-offset: 1px; border-color: transparent; }
 
     .section { margin-top: 14px; }
+
+    .search {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      margin: 0 0 10px;
+      padding: 0 9px;
+      border-radius: 8px;
+      background: #232322;
+      border: 1px solid rgba(255, 255, 255, .08);
+      color: #8b877e;
+    }
+    .search:focus-within { border-color: #4d7f83; }
+    .search input {
+      flex: 1 1 auto;
+      min-width: 0;
+      border: 0;
+      background: none;
+      color: #ece8df;
+      font: 400 12px/1 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+      padding: 8px 0;
+      appearance: none;
+    }
+    .search input:focus { outline: none; }
+    .search input::-webkit-search-cancel-button { -webkit-appearance: none; appearance: none; }
+    .search input::placeholder { color: #7e7a72; }
+
+    .row[hidden] { display: none; }
+    .noresults { margin: 8px 0 0; font-size: 11px; color: #8b877e; }
     .panel[data-compact="true"] .row { padding: 5px 0; }
     .panel[data-compact="true"] .rows { border-top: 0; }
     .panel[data-compact="true"] .label-text { font-size: 11.5px; }
@@ -192,9 +218,8 @@
     back: svg('<path d="M9.5 3.5 5 8l4.5 4.5"/>')
   };
 
-  function markup(compact = false) {
-    const shown = compact ? FIELDS.filter(([, , , kind]) => kind === 'switch') : FIELDS;
-    const rows = shown.map(([key, label, hint, kind]) => {
+  const rowFor = (key, label, hint, kind, compact) => {
+    {
       if (kind === 'switch') {
         return `<div class="row">
           <label for="baton-${key}">
@@ -212,7 +237,16 @@
         <input class="field${kind === 'text' ? ' wide' : ''}" id="baton-${key}" data-key="${key}"
           type="${kind}" ${kind === 'number' ? 'min="0" step="100" inputmode="numeric"' : 'spellcheck="false" autocomplete="off"'}>
       </div>`;
-    }).join('');
+    }
+  };
+
+  function markup(compact = false) {
+    const shown = compact
+      ? FIELDS.filter(([, , , kind, group]) => kind === 'switch' && group === 'behaviour')
+      : FIELDS.filter(([, , , , group]) => group === 'behaviour');
+    const alerts = FIELDS.filter(([, , , , group]) => group === 'alerts');
+    const rows = shown.map((f) => rowFor(...f, compact)).join('');
+    const alertRows = alerts.map((f) => rowFor(...f, compact)).join('');
 
     return `
       <div class="panel" data-compact="${compact}">
@@ -221,8 +255,25 @@
           <a id="baton-update-link" href="#" target="_blank" rel="noopener">Download</a>
         </div>
 
-        ${compact ? '' : '<h3>Behaviour</h3>'}
-        <div class="rows">${rows}</div>
+        ${compact ? '' : `
+        <div class="search">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"
+               stroke="currentColor" stroke-width="1.5" stroke-linecap="round">
+            <circle cx="7" cy="7" r="4.2"/><path d="M10.2 10.2 13.5 13.5"/>
+          </svg>
+          <input id="baton-search" type="search" placeholder="Search settings" aria-label="Search settings"
+                 autocomplete="off" spellcheck="false" />
+        </div>`}
+        <h3>Behaviour</h3>
+        <div class="rows" data-group="behaviour">${rows}</div>
+        <p class="noresults" id="baton-noresults" hidden>No setting matches that.</p>
+
+        ${compact ? '' : `
+        <div class="section">
+          <h3>Alerts</h3>
+          <div class="rows" data-group="alerts">${alertRows}</div>
+          <p class="note" id="baton-notify-note">Needs the notification permission, which Chrome asks for once.</p>
+        </div>`}
 
         ${compact ? `
         <div class="actions">
@@ -257,27 +308,8 @@
 
   const REPO = 'sarang-cmd/baton';
 
-  function load() {
-    return new Promise((resolve) => {
-      try {
-        chrome.storage.local.get(['settings'], (res) => {
-          resolve({ ...DEFAULTS, ...((res && res.settings) || {}) });
-        });
-      } catch (_) {
-        resolve({ ...DEFAULTS });
-      }
-    });
-  }
-
-  function save(settings) {
-    return new Promise((resolve) => {
-      try {
-        chrome.storage.local.set({ settings }, resolve);
-      } catch (_) {
-        resolve();
-      }
-    });
-  }
+  const load = () => store.ready();
+  const save = (patch) => store.save(patch);
 
   function escapeHtml(s) {
     return String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -308,6 +340,7 @@
     root.appendChild(holder);
 
     const panel = holder.querySelector('.panel');
+    // fill() and renderTarget() are defined below; the first paint happens after them
     const settings = await load();
 
     const fill = (s) => {
@@ -348,13 +381,27 @@
     };
 
     const commit = async (patch) => {
-      const next = { ...(await load()), ...patch };
-      await save(next);
+      const next = await save(patch);
       renderTarget(next);
       flash();
     };
 
     fill(settings);
+
+    // a change made anywhere else (the page, another tab, the pill) lands here too
+    const unsubscribe = store.subscribe((next) => {
+      const active = panel.ownerDocument.activeElement;
+      for (const [key] of FIELDS) {
+        const el = panel.querySelector(`[data-key="${key}"]`);
+        if (!el || el === active) continue;
+        if (el.type === 'checkbox') {
+          if (el.checked !== !!next[key]) el.checked = !!next[key];
+        } else if (el !== active) {
+          if (String(el.value) !== String(next[key])) el.value = next[key];
+        }
+      }
+      renderTarget(next);
+    });
 
     for (const [key] of FIELDS) {
       const el = panel.querySelector(`[data-key="${key}"]`);
@@ -362,9 +409,74 @@
       el.addEventListener('change', () => commit({ [key]: readValue(el) }));
     }
 
+    /* ------------------------------------------------------------- search */
+    const search = panel.querySelector('#baton-search');
+    if (search) {
+      const allRows = [...panel.querySelectorAll('.row')];
+      const empty = panel.querySelector('#baton-noresults');
+      const apply = () => {
+        const q = search.value.trim().toLowerCase();
+        let shown = 0;
+        for (const row of allRows) {
+          const text = row.textContent.toLowerCase();
+          const hit = !q || text.includes(q);
+          row.hidden = !hit;
+          if (hit) shown += 1;
+        }
+        if (empty) empty.hidden = shown > 0;
+        // a group with every row filtered out should not leave its heading behind
+        for (const group of panel.querySelectorAll('.rows')) {
+          const heading = group.previousElementSibling;
+          const visible = [...group.querySelectorAll('.row')].some((r) => !r.hidden);
+          if (heading && heading.tagName === 'H3') heading.hidden = !visible;
+          group.hidden = !visible;
+        }
+      };
+      search.addEventListener('input', apply);
+      search.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && search.value) {
+          e.stopPropagation();
+          search.value = '';
+          apply();
+        }
+      });
+      apply();
+    }
+
+    /* ------------------------------------------------------- notifications */
+    const note = panel.querySelector('#baton-notify-note');
+    const refreshNotify = async () => {
+      if (!note) return;
+      let granted = false;
+      try {
+        granted = await new Promise((r) =>
+          chrome.permissions.contains({ permissions: ['notifications'] }, (yes) => r(!!yes && !chrome.runtime.lastError)));
+      } catch (_) {}
+      note.textContent = granted
+        ? 'A desktop notification when it reaches the safety cap or gives up on a send.'
+        : 'Needs the notification permission. The first time you switch this on, Chrome asks.';
+      note.dataset.granted = String(granted);
+    };
+    refreshNotify();
+
+    const notifyToggle = panel.querySelector('[data-key="notifyOnPause"]');
+    if (notifyToggle) {
+      notifyToggle.addEventListener('change', async () => {
+        if (!notifyToggle.checked) return;
+        try {
+          await new Promise((r) =>
+            chrome.permissions.request({ permissions: ['notifications'] }, () => r()));
+        } catch (_) {}
+        refreshNotify();
+      });
+    }
+
+    if (typeof unsubscribe === 'function' && compact) {
+      // the pill is rebuilt on every page load; there is nothing to tear down
+    }
+
     panel.querySelector('#baton-reset').addEventListener('click', async () => {
-      const next = { ...(await load()), enabled: true };
-      await save(next);
+      const next = await save({ enabled: true });
       // clearing a paused state needs the live page to know
       try {
         chrome.runtime.sendMessage({ type: 'baton-reset' }, () => void chrome.runtime.lastError);
@@ -375,8 +487,7 @@
 
     const defaultsBtn = panel.querySelector('#baton-defaults');
     if (defaultsBtn) defaultsBtn.addEventListener('click', async () => {
-      const next = { ...DEFAULTS };
-      await save(next);
+      const next = await store.save({ ...DEFAULTS });
       fill(next);
       flash();
     });

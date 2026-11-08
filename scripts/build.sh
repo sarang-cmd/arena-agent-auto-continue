@@ -12,7 +12,7 @@ mkdir -p "$DIST/$NAME"
 
 cp manifest.json content.js background.js settings.html settings.js LICENSE "$DIST/$NAME/"
 mkdir -p "$DIST/$NAME/ui"
-cp ui/panel.js "$DIST/$NAME/ui/"
+cp ui/settings.js ui/panel.js "$DIST/$NAME/ui/"
 [ -f README.md ] && cp README.md "$DIST/$NAME/"
 cp -r icons "$DIST/$NAME/"
 
