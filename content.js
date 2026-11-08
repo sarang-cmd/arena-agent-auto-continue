@@ -29,6 +29,7 @@
     useKeepWorking: true,
     requireFreshNotice: true,
     showIndicator: true,
+    notifyOnPause: true,
     // User override for the Keep working control: { selector, text, x, y }.
     // x and y are fractions of the viewport, so they survive a resize.
     override: null
@@ -381,6 +382,7 @@
     suppressUntil = Date.now() + 20000;
     lastSentSignature = signature;
     status('no change after sending, holding');
+    notify('Baton stepped back', 'A send did not change the page, so it is waiting before trying again.');
     return null;
   }
 
@@ -708,6 +710,7 @@
     if (consecutive >= settings.maxConsecutive) {
       stopped = true;
       setStatus(`paused at the safety cap of ${consecutive}`);
+      notify('Paused at the safety cap', `${consecutive} messages sent. Open the pill to reset the counter.`);
       return true;
     }
 
@@ -717,6 +720,16 @@
   }
 
   function setStatus(t) { status(t); }
+
+  /** A desktop notification, if the user asked for one and Chrome allows it. */
+  function notify(title, message) {
+    if (!settings.notifyOnPause) return;
+    try {
+      chrome.runtime.sendMessage({ type: 'baton-notify', title, message }, () => {
+        void (chrome.runtime && chrome.runtime.lastError);
+      });
+    } catch (_) {}
+  }
 
   function scheduleSend(notice) {
     if (pendingTimer) return;
