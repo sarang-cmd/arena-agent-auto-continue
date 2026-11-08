@@ -8,10 +8,6 @@
 <meta name="theme-color" content="#e9e6df" />
 <link rel="icon" href="icon.svg" type="image/svg+xml" />
 <link rel="stylesheet" href="styles.css" />
-<script>
-  window.va = window.va || function () { (window.vaq = window.vaq || []).push(arguments); };
-</script>
-<script defer src="/_vercel/insights/script.js"></script>
 </head>
 <body>
 
@@ -45,8 +41,8 @@
 
     <h2>What the extension stores</h2>
     <p>
-      One record in your browser's local extension storage. It contains your popup settings (whether
-      auto-send is on, the delay, the message text, the safety cap, and the two guard switches) and
+      One record in your browser's local extension storage. It contains your settings (whether
+      auto-send is on, the delay, the message text, the safety cap, and the guard switches) and
       a counter of how many messages have been sent in this session. You can clear it by removing the
       extension, and nothing is written to disk outside that storage area.
     </p>
@@ -75,7 +71,7 @@
     <h2>Permissions, in plain language</h2>
     <ul>
       <li><code class="inline-code">storage</code> keeps your settings and the send counter on your machine.</li>
-      <li><code class="inline-code">activeTab</code> lets the popup ask the current arena.ai tab for its status while the popup is open.</li>
+      <li><code class="inline-code">activeTab</code> lets settings ask the current arena.ai tab for its status while the settings view is open.</li>
       <li>Host access to <code class="inline-code">arena.ai</code> is what allows the script to see the banner and fill the message box.</li>
     </ul>
 
@@ -113,6 +109,5 @@
   </div>
 </footer>
 
-<script type="module" src="speed-insights.js"></script>
 </body>
 </html>
