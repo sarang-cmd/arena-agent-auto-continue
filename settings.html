@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Baton settings</title>
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml" />
+<style>
+  :root {
+    --stone: #e9e6df;
+    --raised: #efede7;
+    --sunk: #e0dcd3;
+    --ink: #22211e;
+    --muted: #5e5b54;
+    --accent: #2a5f63;
+    --serif: ui-serif, "Iowan Old Style", "Palatino Linotype", Palatino, Georgia, serif;
+  }
+  * { box-sizing: border-box; }
+  html { scrollbar-width: none; }
+  body::-webkit-scrollbar, html::-webkit-scrollbar { width: 0; height: 0; }
+
+  body {
+    margin: 0;
+    background: var(--stone);
+    color: var(--ink);
+    font: 400 14px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    min-height: 100vh;
+    scrollbar-width: none;
+  }
+  .wrap { max-width: 520px; margin: 0 auto; padding: 40px 24px 60px; }
+  header { display: flex; align-items: center; gap: 11px; margin-bottom: 22px; }
+  header img { width: 34px; height: 34px; }
+  h1 { font: 600 19px/1.2 var(--serif); margin: 0; letter-spacing: -.01em; }
+  .sub { font-size: 12px; color: var(--muted); margin-top: 1px; }
+  .card {
+    background: var(--raised);
+    border-radius: 14px;
+    padding: 16px 18px;
+    box-shadow: 6px 6px 14px rgba(150,143,128,.32), -6px -6px 14px rgba(255,255,255,.9);
+  }
+  .foot { margin-top: 18px; font-size: 12px; color: var(--muted); }
+  .foot a { color: var(--accent); }
+  a { color: var(--accent); }
+
+  /* the shared panel is designed for the dark plate; on this page it sits on
+     light stone, so remap its colours once here rather than in two places */
+  .card .panel { color: var(--ink); }
+  .card .panel .rows { border-top-color: rgba(150,143,128,.3); }
+  .card .panel .row { border-bottom-color: rgba(150,143,128,.2); }
+  .card .panel .label-text { color: var(--ink); }
+  .card .panel .hint { color: var(--muted); }
+  .card .panel h3 { color: var(--muted); }
+  .card .panel .track { background: var(--sunk); box-shadow: inset 2px 2px 5px rgba(150,143,128,.4); }
+  .card .panel .track::after { background: var(--raised); box-shadow: 2px 2px 5px rgba(150,143,128,.35); }
+  .card .panel .switch input:checked + .track { background: var(--accent); }
+  .card .panel .switch input:checked + .track::after { background: #f6f4ef; }
+  .card .panel .field {
+    background: var(--sunk); color: var(--ink);
+    border: 0; box-shadow: inset 2px 2px 5px rgba(150,143,128,.35);
+  }
+  .card .panel .btn { background: var(--raised); color: var(--ink); box-shadow: 2px 2px 6px rgba(150,143,128,.3); }
+  .card .panel .btn:hover { background: #f4f2ed; }
+  .card .panel .btn.primary { background: var(--accent); color: #f4f1ea; }
+  .card .panel .current { background: var(--sunk); color: var(--ink); }
+  .card .panel .current b { color: var(--accent); }
+  .card .panel .note { color: var(--muted); }
+  .card .panel .update { background: #f0e6d4; color: #6c4a13; border-left-color: #9a6b22; }
+  .card .panel .update a { color: #6c4a13; }
+  .card .panel .saved { color: var(--accent); }
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <img src="icons/icon.svg" alt="" />
+      <div>
+        <h1>Baton</h1>
+        <div class="sub">Sends one message at the tool-call limit</div>
+      </div>
+    </header>
+
+    <div class="card" id="mount"></div>
+
+    <p class="foot">
+      The same settings are available in the pill on any arena.ai page, behind the gear.
+      Source and releases are on <a href="https://github.com/sarang-cmd/baton" target="_blank" rel="noopener">GitHub</a>.
+    </p>
+  </div>
+
+  <script src="ui/panel.js"></script>
+  <script src="settings.js"></script>
+</body>
+</html>
