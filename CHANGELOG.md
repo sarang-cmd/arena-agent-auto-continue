@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.1.1, 8 November 2026
+
+- Fixed the direct download on the landing page. `*.zip` was gitignored, so the file the button
+  points at was never committed and the site returned "File wasn't available on site". The build now
+  ships `site/baton.zip`, and CI fails if the committed copy drifts from a fresh build.
+- The download sheet animates in and out, and respects reduced-motion preferences.
+- The on-page pill arrives with a short fade and rise the first time it appears.
+
 ## 1.1.0, 8 November 2026
 
 - Fixed the false positive where a limit banner from an earlier turn was answered again. A banner now

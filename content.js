@@ -804,6 +804,9 @@
     :host { all: initial; }
 
     .root {
+      /* arrives rather than appearing, once, when the page is ready */
+      animation: arrive .32s cubic-bezier(.32, .72, 0, 1) both;
+      transform-origin: bottom right;
       font: 400 11px/1.4 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
       -webkit-font-smoothing: antialiased;
       color: #ece9e2;
@@ -907,8 +910,14 @@
       font-variant-numeric: tabular-nums;
     }
 
+    @keyframes arrive {
+      from { opacity: 0; transform: translateY(6px) scale(.96); }
+      to   { opacity: 1; transform: none; }
+    }
+
     @media (prefers-reduced-motion: reduce) {
       .plate, .more { transition: none; }
+      .root { animation: none; }
     }
   `;
 
