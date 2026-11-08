@@ -61,6 +61,7 @@
   let lastSentSignature = '';
   let lastSendFingerprint = '';
   let suppressUntil = 0;
+  let sending = false;
   let currentSignature = '';
   let tickCount = 0;
 
@@ -363,6 +364,26 @@
     return !findTaskPrompt();
   }
 
+  /**
+   * After sending, check that something actually happened. If the notice and the
+   * conversation are both unchanged, the click landed on a finished task, so the
+   * notice is treated as history and left alone.
+   */
+  async function confirmEffect(signature, maxMs = 6000) {
+    const before = transcriptFingerprint();
+    const started = Date.now();
+    while (Date.now() - started < maxMs) {
+      await sleep(250);
+      const still = findLimitNotice();
+      if (!still) return 'cleared';
+      if (transcriptFingerprint() !== before) return 'new content';
+    }
+    suppressUntil = Date.now() + 20000;
+    lastSentSignature = signature;
+    status('no change after sending, holding');
+    return null;
+  }
+
   /** Poll for a usable composer, since it appears after the prompt closes. */
   async function waitForComposer(maxMs = 5000) {
     const started = Date.now();
@@ -624,7 +645,20 @@
   /* ------------------------------------------------------------------ send */
 
   async function doSend() {
-    armed = false; // one shot per notice
+    // Single flight. Sending awaits the page, and ticks keep arriving while it
+    // does; without this guard two attempts could click the same control.
+    if (sending) return false;
+    sending = true;
+    armed = false; // one shot per notice, taken up front
+
+    try {
+      return await attemptSend();
+    } finally {
+      sending = false;
+    }
+  }
+
+  async function attemptSend() {
     // Never act unless the conversation has moved on since the last send. This
     // is what stops a banner from an earlier turn being answered twice.
     if (settings.requireFreshNotice && lastSendFingerprint &&
@@ -677,6 +711,8 @@
       return true;
     }
 
+    const effect = await confirmEffect(lastSentSignature);
+    if (effect) setStatus(`sent "${settings.message}", ${effect}`);
     return true;
   }
 
