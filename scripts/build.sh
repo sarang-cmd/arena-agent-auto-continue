@@ -22,5 +22,8 @@ else
   python3 -c "import shutil; shutil.make_archive('$NAME', 'zip', '.', '$NAME')"
 fi
 
-echo "Built dist/$NAME.zip"
+# The landing page offers a direct download, so the artifact ships with the site.
+cp "$NAME.zip" ../site/"$NAME".zip
+
+echo "Built dist/$NAME.zip and site/$NAME.zip"
 unzip -l "$NAME.zip" | tail -n +2 | head -20
