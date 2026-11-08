@@ -264,6 +264,48 @@ async function run() {
     window.close();
   }
 
+  /* 9. The task prompt covers the composer: click Keep working, then send */
+  {
+    const { window } = makePage({ taskPrompt: true });
+    window.eval(CONTENT);
+    await wait(4000);
+    const keeps = window.__log.keepClicks || 0;
+    const sends = window.__log.submits;
+    check('clicks Keep working when the task prompt is showing', keeps === 1, `keepClicks=${keeps}`);
+    check('sends continue after the prompt is dismissed',
+      sends.length === 1 && sends[0].text === 'continue', JSON.stringify(sends));
+    window.close();
+  }
+
+  /* 10. No task prompt: nothing else gets clicked */
+  {
+    const { window } = makePage();
+    window.eval(CONTENT);
+    await wait(3000);
+    check('does not click anything when there is no task prompt',
+      (window.__log.keepClicks || 0) === 0 && window.__log.submits.length === 1,
+      `keepClicks=${window.__log.keepClicks || 0} sends=${window.__log.submits.length}`);
+    window.close();
+  }
+
+  /* 11. A Keep working button elsewhere on the page is not clicked */
+  {
+    const { window } = makePage();
+    const stray = window.document.createElement('div');
+    stray.innerHTML = '<button id="strayKeep">Keep working</button>';
+    window.document.getElementById('chat').appendChild(stray);
+    window.__log.strayClicks = 0;
+    window.document.getElementById('strayKeep').addEventListener('click', () => {
+      window.__log.strayClicks += 1;
+    });
+    window.eval(CONTENT);
+    await wait(3000);
+    check('ignores a Keep working button outside the prompt',
+      (window.__log.strayClicks || 0) === 0 && window.__log.submits.length === 1,
+      `stray=${window.__log.strayClicks} sends=${window.__log.submits.length}`);
+    window.close();
+  }
+
   const failed = results.filter((r) => !r.pass);
   console.log(`\n${results.length - failed.length}/${results.length} passed`);
   process.exit(failed.length ? 1 : 0);
