@@ -71,22 +71,106 @@
     return chatState && chatState.id ? chatState.id : null;
   }
 
+  // States that mean a part, and so its message, is still moving. The names
+  // come from the AI SDK part shapes Arena's bundle uses; anything else is
+  // treated as unknown rather than guessed either way.
+  const BUSY_STATES = new Set(['streaming', 'pending', 'input-streaming', 'running',
+    'in-progress', 'started', 'queued']);
+  const DONE_STATES = new Set(['done', 'complete', 'completed', 'finished', 'output-available']);
+  const DONE_REASONS = new Set(['stop', 'end_turn', 'eos', 'max_tokens', 'stop_sequence']);
+
+  /**
+   * Is the page still working on this message? Three answers, not two:
+   * true, false, and null for a shape we have not seen yet. Only null falls
+   * through to the timing heuristic, so a shape we do recognise is never
+   * overridden by a timer.
+   */
+  function busySignal(message) {
+    if (!message || message.role !== 'assistant') return { busy: null, signal: 'not-assistant' };
+    const meta = message.metadata || {};
+
+    if (meta.pending === true) return { busy: true, signal: 'metadata.pending true' };
+    if (meta.pending === false) return { busy: false, signal: 'metadata.pending false' };
+    if (meta.stopped === true) return { busy: false, signal: 'metadata.stopped' };
+    if (typeof meta.finishReason === 'string' && DONE_REASONS.has(meta.finishReason)) {
+      return { busy: false, signal: 'metadata.finishReason ' + meta.finishReason };
+    }
+    if (typeof meta.status === 'string') {
+      const s = meta.status.toLowerCase();
+      if (DONE_STATES.has(s)) return { busy: false, signal: 'metadata.status ' + s };
+      if (BUSY_STATES.has(s)) return { busy: true, signal: 'metadata.status ' + s };
+    }
+
+    let sawDone = false;
+    for (const part of message.parts || []) {
+      const state = typeof part.state === 'string' ? part.state.toLowerCase() : null;
+      if (state && BUSY_STATES.has(state)) return { busy: true, signal: 'part.state ' + state };
+      if (state && DONE_STATES.has(state)) sawDone = true;
+    }
+    if (sawDone) return { busy: false, signal: 'part.state done' };
+    return { busy: null, signal: 'no busy or done marker' };
+  }
+
+  /** Does this message carry answer text, as opposed to only steps? */
+  function hasAnswerText(message) {
+    for (const part of (message && message.parts) || []) {
+      if (part.type !== 'text') continue;
+      if (typeof part.text === 'string' && part.text.trim().length > 0) return true;
+    }
+    if (typeof message.content === 'string' && message.content.trim().length > 0) return true;
+    return false;
+  }
+
   /**
    * Is this assistant message finished?
    *
-   * Verified shape from the captures: `pending` goes true to false, the text
-   * part carries state "done", and nothing else arrives afterwards. `pending`
-   * is the authority; the text state is used as corroboration when present.
+   * `options.settled` is measured by the observer, not guessed here: it means
+   * the structural fingerprint of the chat has not changed for several polls.
+   * It is only consulted when the message carries no marker either way, which
+   * is the case the captures never covered.
    */
-  function isFinished(message) {
+  function isFinished(message, options = {}) {
     if (!message || message.role !== 'assistant') return false;
-    const meta = message.metadata || {};
-    if (meta.pending === true) return false;
-    const texts = (message.parts || []).filter((p) => p.type === 'text');
-    if (texts.length === 0) return false;
-    const states = texts.map((p) => p.state).filter(Boolean);
-    if (states.length && states.some((s) => s !== 'done')) return false;
-    return true;
+    const sig = busySignal(message);
+    if (sig.busy === true) return false;
+    if (pendingQuestion(message)) return false;
+    // A message made only of reasoning and tool parts is a step on the way, not
+    // a finished response. The captures show the agent producing several of
+    // these per turn, so notifying on them would be a notification every few
+    // seconds for one answer.
+    if (!hasAnswerText(message)) return false;
+    if (sig.busy === false) return true;
+    return options.settled === true;
+  }
+
+  /**
+   * A structural summary of a chat state: key names, part types and states,
+   * plus lengths. No text, no ids, no titles. This is what the diagnostics
+   * panel shows so a wrong assumption can be found from the user's own page
+   * without anyone reading a conversation.
+   */
+  function shapeOf(state) {
+    const messages = (state && state.messages) || [];
+    const last = messages.length ? messages[messages.length - 1] : null;
+    const assistant = lastAssistant(messages);
+    const parts = (assistant && assistant.parts) || [];
+    return {
+      chatKeys: Object.keys(state || {}).sort().slice(0, 20),
+      messages: messages.length,
+      roles: messages.slice(-4).map((m) => m && m.role),
+      assistant: assistant
+        ? {
+            metadataKeys: Object.keys(assistant.metadata || {}).sort().slice(0, 20),
+            pending: assistant.metadata ? assistant.metadata.pending : undefined,
+            finishReason: assistant.metadata ? assistant.metadata.finishReason : undefined,
+            partTypes: parts.map((p) => p.type).slice(0, 12),
+            partStates: parts.map((p) => p.state || null).slice(0, 12),
+            textLengths: parts.filter((p) => p.type === 'text')
+              .map((p) => (typeof p.text === 'string' ? p.text.length : null)).slice(0, 6)
+          }
+        : null,
+      lastRole: last ? last.role : null
+    };
   }
 
   /** A pending ask_user part: the agent is waiting on the user right now. */
@@ -160,7 +244,9 @@
       }
 
       // E1: finished on its own, and not finished before.
-      const doneNow = isFinished(message);
+      const doneNow = isFinished(message, options);
+      // no settled here: a prior state that was still streaming must not count
+      // as already finished, or the completion would never fire
       const doneBefore = prior ? isFinished(prior) : false;
       if (doneNow && !doneBefore) {
         if (looksStopped(message, stoppedIds)) {
@@ -178,7 +264,10 @@
             turnId: turnIdFor(next, index),
             threadId,
             mode,
-            timestamp: Date.now()
+            timestamp: Date.now(),
+            // which marker decided it, for the diagnostics panel
+            signal: busySignal(message).signal,
+            settled: options.settled === true
           });
         }
       }
@@ -269,6 +358,9 @@
     SUPPORTED,
     isSupported,
     isFinished,
+    hasAnswerText,
+    busySignal,
+    shapeOf,
     pendingQuestion,
     looksStopped,
     fromChatState,

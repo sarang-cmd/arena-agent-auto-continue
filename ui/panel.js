@@ -195,7 +195,11 @@
     .current b { color: #9fc6c9; font-weight: 600; }
     .grid3 { display: grid; grid-template-columns: 1fr 1fr auto; gap: 5px; margin-top: 5px; }
     .grid3 .field { width: 100%; text-align: center; }
-    .note { margin-top: 8px; font-size: 10.5px; color: #7e7a72; line-height: 1.45; }
+    #baton-diag-note { white-space: pre-line; }
+  #baton-diag-raw pre { white-space: pre-wrap; word-break: break-word; font-size: 11px;
+    line-height: 1.45; margin: 0.6rem 0 0; color: var(--ink-2, #55595c); }
+  #baton-diag-raw summary { cursor: pointer; font-size: 12px; margin-top: 0.7rem; }
+  .note { margin-top: 8px; font-size: 10.5px; color: #7e7a72; line-height: 1.45; }
     .update {
       background: rgba(211,160,92,.12);
       border-left: 2px solid #d3a05c;
@@ -285,6 +289,32 @@
             These arrive in your operating system. The body names the event and the thread, never the
             answer, unless you switch text on above.
           </p>
+        </div>
+
+
+        <div class="section">
+          <h3>Diagnostics</h3>
+          <div class="rows">
+            <div class="row">
+              <div class="label">
+                <span>Last report from a page</span>
+                <small id="baton-diag-head">No report yet</small>
+              </div>
+            </div>
+          </div>
+          <div class="actions">
+            <button class="btn" type="button" id="baton-diag-refresh">Refresh</button>
+            <button class="btn" type="button" id="baton-diag-test">Send a test completion event</button>
+          </div>
+          <p class="note" id="baton-diag-note">
+            This is what Baton sees, not what it thinks. It holds key names, part types and lengths,
+            never your text. If a run finishes and this still says nothing, the button above proves
+            which half is broken.
+          </p>
+          <details id="baton-diag-raw" hidden>
+            <summary>Raw report, for a bug report</summary>
+            <pre id="baton-diag-json"></pre>
+          </details>
         </div>
 
         <div class="section">
@@ -484,6 +514,99 @@
       note.dataset.granted = String(granted);
     };
     refreshNotify();
+
+
+    /* ------------------------------------------------------- diagnostics */
+
+    const diagHead = panel.querySelector('#baton-diag-head');
+    const diagRaw = panel.querySelector('#baton-diag-raw');
+    const diagJson = panel.querySelector('#baton-diag-json');
+    const diagNote = panel.querySelector('#baton-diag-note');
+
+    function describeDiag(d) {
+      if (!d) return ['No report yet', 'Open an arena.ai tab and let it poll for a few seconds.'];
+      const when = new Date(d.at || Date.now());
+      const lines = [];
+      lines.push('Reported ' + when.toLocaleTimeString() + ' from ' + (d.page || 'a page'));
+      if (!d.route || !d.route.chatId) {
+        lines.push('No chat id in the address bar or in the page traffic.');
+      } else {
+        lines.push('Chat ' + d.route.chatId + ', mode ' + d.route.mode + ', found in the ' + d.route.from);
+      }
+      if (d.poll) {
+        lines.push('Poll ' + d.poll.endpoint + ' answered ' + (d.poll.status || 'no response') +
+          (d.poll.error ? ' (' + d.poll.error + ')' : ''));
+      } else {
+        lines.push('Nothing has been polled yet.');
+      }
+      if (typeof d.messages === 'number') lines.push(d.messages + ' messages in the state');
+      if (d.shape && d.shape.assistant) {
+        const a = d.shape.assistant;
+        lines.push('Last assistant: pending ' + (a.pending === undefined ? 'absent' : a.pending) +
+          ', parts ' + (a.partTypes || []).join(', ') +
+          ', states ' + (a.partStates || []).map((s) => s || 'none').join(', '));
+      }
+      if (d.decision) {
+        if (d.decision.error) {
+          lines.push('Decision: ' + d.decision.error);
+        } else {
+          lines.push('Decision: finished ' + (d.decision.finished ? 'yes' : 'no') +
+            ', signal ' + (d.decision.signal || 'none') +
+            ', unchanged for ' + Math.round((d.decision.unchangedMs || 0) / 1000) + 's' +
+            (d.decision.baseline ? ', first poll is the baseline' : ''));
+        }
+      }
+      if (d.events && d.events.length) {
+        lines.push('Events sent: ' + d.events.map((e) => e.type).join(', '));
+      } else {
+        lines.push('Events sent: none yet');
+      }
+      return lines;
+    }
+
+    function renderDiag(d) {
+      if (!diagHead) return;
+      const lines = describeDiag(d);
+      diagHead.textContent = lines[0];
+      if (diagNote) diagNote.textContent = lines.slice(1).join('\n');
+      if (diagRaw && diagJson) {
+        diagRaw.hidden = !d;
+        diagJson.textContent = d ? JSON.stringify(d, null, 1) : '';
+      }
+    }
+
+    async function loadDiag() {
+      try {
+        const res = await new Promise((r) => chrome.storage.session.get(['batonDiag'], (v) => r(v || {})));
+        renderDiag(res.batonDiag || null);
+      } catch (_) {
+        renderDiag(null);
+      }
+    }
+
+    const diagRefresh = panel.querySelector('#baton-diag-refresh');
+    if (diagRefresh) diagRefresh.addEventListener('click', loadDiag);
+    const diagTest = panel.querySelector('#baton-diag-test');
+    if (diagTest) {
+      diagTest.addEventListener('click', () => {
+        try {
+          chrome.runtime.sendMessage({ type: 'baton-test-event' }, (res) => {
+            void (chrome.runtime && chrome.runtime.lastError);
+            if (diagNote) {
+              diagNote.textContent = res && res.ok
+                ? 'Test event accepted by the worker, so the notification path works. If real runs do not notify, the problem is detection, and the report above says what Baton saw.'
+                : 'The worker refused the test event. Reload the extension and try again.';
+            }
+          });
+        } catch (_) {
+          if (diagNote) diagNote.textContent = 'The extension is not answering. Reload it at chrome://extensions.';
+        }
+      });
+    }
+    if (!compact) {
+      loadDiag();
+      setInterval(loadDiag, 4000);
+    }
 
     const testBtn = panel.querySelector('#baton-test-notify');
     if (testBtn) {

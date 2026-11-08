@@ -41,6 +41,18 @@ Setup:
 | 16 | any | permission state | Disable the extension's notification permission, reopen options | The Notifications note reads "Notifications are blocked for this extension" | `refreshNotify` did not run |
 | 17 | any | search | Type `question` in the options search box | Only the matching notification toggle stays visible | Row filtering regressed |
 
+## Diagnostics rows
+
+Run these first. They say which half of the feature is failing, which is the difference between a
+five minute fix and a week of guessing.
+
+| # | Steps | Expected | If it fails |
+| --- | --- | --- | --- |
+| D1 | Open the settings page, Diagnostics, then a thread on arena.ai | The report names a chat id, says whether it came from the path or from traffic, and shows the endpoint with a 200 | Nothing polls: the chat id was not found, and the report says so |
+| D2 | Let a response finish, then press Refresh | `Decision: finished yes` with the marker that decided it | Detection: send me the report, it names the exact shape |
+| D3 | Press **Send a test completion event** | A notification appears | The worker or the permission is at fault, not detection |
+| D4 | Ask a question, watch the report while it runs | `finished no`, with the signal that kept it waiting | If it says finished mid answer, the busy marker is being misread |
+
 ## What a passing run proves
 
 Rows 1 to 8 and 13 prove the three events, dedupe and the toggles for the modes with a verified

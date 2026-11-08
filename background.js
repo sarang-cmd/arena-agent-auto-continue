@@ -95,6 +95,20 @@ chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
     return true;
   }
 
+  if (msg.type === 'baton-diag') {
+    const worker = self.BatonWorker;
+    if (worker && worker.noteDiag) worker.noteDiag(msg.diag);
+    reply({ ok: !!worker });
+    return true;
+  }
+
+  if (msg.type === 'baton-test-event') {
+    const worker = self.BatonWorker;
+    if (!worker) { reply({ ok: false, reason: 'no-worker', error: bootError }); return; }
+    worker.testEvent((ok) => reply({ ok }));
+    return true;
+  }
+
   if (msg.type === 'baton-event') {
     const events = Array.isArray(msg.events) ? msg.events : [];
     const worker = self.BatonWorker;

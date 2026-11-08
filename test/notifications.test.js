@@ -240,3 +240,104 @@ test('every file the manifest loads exists, and parses', () => {
     assert.doesNotThrow(() => new vm.Script(fs.readFileSync(path.join(root, f), 'utf8')), f);
   }
 });
+
+/* ---------------------------------------------------------------- detection
+ * The captures never covered the agent chat-state shape, so these cases pin the
+ * decision down from both sides: a marker that is present must win, and an
+ * unmarked message must only count once the page has stopped changing.
+ */
+
+const assistant = (overrides) => ({
+  id: 'a1', role: 'assistant',
+  metadata: { pending: false },
+  parts: [{ type: 'text', state: 'done', text: 'hello' }],
+  ...overrides
+});
+
+test('pending true is busy, whatever else the message says', () => {
+  assert.equal(Events.isFinished(assistant({ metadata: { pending: true } })), false);
+});
+
+test('pending false is done, even with no text state to corroborate it', () => {
+  const msg = assistant({ parts: [{ type: 'text', text: 'hello' }] });
+  assert.equal(Events.isFinished(msg), true);
+  assert.match(Events.busySignal(msg).signal, /pending false/);
+});
+
+test('a streaming part keeps it busy when pending is absent', () => {
+  const msg = assistant({ metadata: {}, parts: [{ type: 'text', state: 'streaming', text: 'half' }] });
+  assert.equal(Events.isFinished(msg), false, 'must not notify mid stream');
+  assert.match(Events.busySignal(msg).signal, /streaming/);
+});
+
+test('a done part finishes it when pending is absent', () => {
+  const msg = assistant({ metadata: {}, parts: [{ type: 'text', state: 'done', text: 'an answer' }] });
+  assert.equal(Events.isFinished(msg), true);
+});
+
+test('a finishReason of stop counts as done', () => {
+  const msg = assistant({ metadata: { finishReason: 'stop' }, parts: [{ type: 'text', text: 'an answer' }] });
+  assert.equal(Events.isFinished(msg), true);
+});
+
+test('an unmarked message only counts once the page has settled', () => {
+  const msg = assistant({ metadata: {}, parts: [{ type: 'text', text: 'x' }] });
+  assert.equal(Events.isFinished(msg), false, 'unknown shape must not fire on its own');
+  assert.equal(Events.isFinished(msg, { settled: true }), true, 'settled makes it fire');
+});
+
+test('an empty message never counts as finished', () => {
+  assert.equal(Events.isFinished({ role: 'assistant', metadata: {}, parts: [] }, { settled: true }), false);
+});
+
+test('a step made only of reasoning and tool parts is not a finished response', () => {
+  const step = assistant({
+    metadata: { pending: false },
+    parts: [{ type: 'reasoning', state: 'done' }, { type: 'tool-ask_user', state: 'output-available' }]
+  });
+  assert.equal(Events.isFinished(step), false);
+  assert.equal(Events.isFinished(step, { settled: true }), false, 'settling must not promote a step');
+});
+
+test('a pending question is not a completion', () => {
+  const msg = assistant({
+    metadata: {},
+    parts: [
+      { type: 'text', state: 'done' },
+      { type: 'tool-ask_user', state: 'input-available' }
+    ]
+  });
+  assert.equal(Events.isFinished(msg, { settled: true }), false);
+});
+
+test('the settled flag alone drives E1 through fromChatState', () => {
+  const before = { id: 'chat-1', messages: [
+    { id: 'm1', role: 'user', parts: [{ type: 'text', text: 'go' }] },
+    { id: 'm2', role: 'assistant', metadata: {}, parts: [{ type: 'text', state: 'streaming' }] }
+  ] };
+  const after = { id: 'chat-1', messages: [
+    { id: 'm1', role: 'user', parts: [{ type: 'text', text: 'go' }] },
+    { id: 'm2', role: 'assistant', metadata: {}, parts: [{ type: 'text', text: 'result' }] }
+  ] };
+  const notYet = Events.fromChatState(before, after, { mode: 'agent', settled: false });
+  const settled = Events.fromChatState(before, after, { mode: 'agent', settled: true });
+  assert.deepEqual(notYet.map((e) => e.type), []);
+  assert.deepEqual(settled.map((e) => e.type), ['response_done']);
+  assert.match(settled[0].signal, /no busy or done marker/);
+});
+
+test('the structural summary carries no text and no ids', () => {
+  const state = { id: 'chat-secret-id', messages: [
+    { id: 'm1', role: 'user', parts: [{ type: 'text', text: 'my private prompt' }] },
+    { id: 'm2', role: 'assistant', metadata: { pending: false, model: 'x' },
+      parts: [{ type: 'text', state: 'done', text: 'my private answer' }] }
+  ] };
+  const shape = Events.shapeOf(state);
+  const json = JSON.stringify(shape);
+  assert.ok(!json.includes('private'), 'text leaked into the shape report');
+  assert.ok(!json.includes('chat-secret-id'), 'the chat id leaked into the shape report');
+  assert.ok(!json.includes('m1'), 'a message id leaked into the shape report');
+  assert.deepEqual(shape.roles, ['user', 'assistant']);
+  assert.deepEqual(shape.assistant.partStates, ['done']);
+  assert.deepEqual(shape.assistant.metadataKeys, ['model', 'pending']);
+});
