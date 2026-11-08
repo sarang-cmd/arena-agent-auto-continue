@@ -1,5 +1,5 @@
 /**
- * jsdom smoke test for content.js — simulates an arena.ai/agent page that
+ * jsdom smoke test for content.js: simulates an arena.ai/agent page that
  * shows the tool-call-limit notice, then checks that "continue" gets typed
  * and submitted exactly once.
  *
@@ -21,12 +21,18 @@ const CONTENT = fs.readFileSync(path.join(__dirname, '..', 'content.js'), 'utf8'
 const LIMIT_LINE =
   'The agent reached the tool-call limit for this turn. Send a message to continue where it left off.';
 
-function makePage({ withNotice = true, draft = '', richComposer = false } = {}) {
+function makePage({ withNotice = true, draft = '', richComposer = false, taskPrompt = false } = {}) {
   const html = `<!doctype html><html><body>
     <main id="chat">
       <div class="msg user">build me a thing</div>
       ${withNotice ? `<div class="notice" id="notice"><span>${LIMIT_LINE}</span></div>` : ''}
     </main>
+    ${taskPrompt ? `<div id="prompt" role="dialog">
+      <p>Was this task successful?</p>
+      <button type="button" id="yes">Yes</button>
+      <button type="button" id="no">No</button>
+      <button type="button" id="keep">Keep working</button>
+    </div>` : ''}
     <form id="composer">
       ${richComposer
         ? `<div id="input" contenteditable="true" role="textbox" data-placeholder="Send a message">${draft}</div>`
@@ -51,11 +57,18 @@ function makePage({ withNotice = true, draft = '', richComposer = false } = {}) 
     const id = this.id;
     if (id === 'input') return { width: 520, height: 48, top: 820, bottom: 868, left: 20, right: 540, x: 20, y: 820 };
     if (id === 'send') return { width: 32, height: 32, top: 828, bottom: 860, left: 560, right: 592, x: 560, y: 828 };
+    if (id === 'prompt') return { width: 900, height: 220, top: 700, bottom: 920, left: 40, right: 940, x: 40, y: 700 };
+    if (id === 'keep') return { width: 120, height: 34, top: 800, bottom: 834, left: 60, right: 180, x: 60, y: 800 };
+    if (id === 'yes' || id === 'no') return { width: 120, height: 34, top: 760, bottom: 794, left: 60, right: 180, x: 60, y: 760 };
+    if (this.closest && this.closest('#prompt')) {
+      return { width: 860, height: 200, top: 720, bottom: 920, left: 50, right: 910, x: 50, y: 720 };
+    }
     const inChat = this.closest && this.closest('#chat');
     if (inChat) return { width: 600, height: 40, top: 100, bottom: 140, left: 20, right: 620, x: 20, y: 100 };
-    if (this === document.body || this === document.documentElement) {
+    if (this === window.document.body || this === window.document.documentElement) {
       return { width: 1200, height: 900, top: 0, bottom: 900, left: 0, right: 1200, x: 0, y: 0 };
     }
+    if (this === window.document.body) return { width: 1200, height: 900, top: 0, bottom: 900, left: 0, right: 1200, x: 0, y: 0 };
     return { width: 0, height: 0, top: 0, bottom: 0, left: 0, right: 0, x: 0, y: 0 };
   };
 
@@ -97,6 +110,22 @@ function makePage({ withNotice = true, draft = '', richComposer = false } = {}) 
     }
   });
 
+  if (taskPrompt) {
+    const prompt = window.document.getElementById('prompt');
+    const composer = window.document.getElementById('composer');
+    // The prompt covers the composer until it is dismissed.
+    composer.style.display = 'none';
+    window.__log.keepClicks = 0;
+    window.document.getElementById('keep').addEventListener('click', () => {
+      window.__log.keepClicks += 1;
+      prompt.remove();
+      composer.style.display = '';
+    });
+    window.document.getElementById('yes').addEventListener('click', () => {
+      window.__log.keepClicks += 1; // a wrong click registers the same way
+    });
+  }
+
   return { dom, window, store, input };
 }
 
@@ -106,7 +135,7 @@ async function run() {
   const results = [];
   const check = (name, pass, extra = '') => {
     results.push({ name, pass, extra });
-    console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${extra ? '  — ' + extra : ''}`);
+    console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${extra ? '  - ' + extra : ''}`);
   };
 
   /* 1. Fires once when the exact notice appears ------------------------- */
