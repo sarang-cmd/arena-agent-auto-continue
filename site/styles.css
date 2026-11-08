@@ -573,11 +573,44 @@ dialog {
   background: var(--stone-raised);
   color: var(--ink);
   box-shadow: 0 24px 60px rgba(60, 54, 44, .3), var(--shadow-out);
+
+  /* the sheet rises and settles, the way a sheet of paper would */
+  opacity: 0;
+  transform: translateY(10px) scale(.985);
+  transition:
+    opacity .18s ease-out,
+    transform .2s cubic-bezier(.32, .72, 0, 1),
+    overlay .2s allow-discrete,
+    display .2s allow-discrete;
 }
+dialog[open] {
+  opacity: 1;
+  transform: none;
+}
+@starting-style {
+  dialog[open] {
+    opacity: 0;
+    transform: translateY(10px) scale(.985);
+  }
+}
+dialog[data-closing] {
+  opacity: 0;
+  transform: translateY(6px) scale(.99);
+}
+
 dialog::backdrop {
   background: rgba(34, 33, 30, .38);
   -webkit-backdrop-filter: blur(2px);
   backdrop-filter: blur(2px);
+  opacity: 0;
+  transition:
+    opacity .18s ease-out,
+    overlay .2s allow-discrete,
+    display .2s allow-discrete;
+}
+dialog[open]::backdrop { opacity: 1; }
+@starting-style {
+  dialog[open]::backdrop { opacity: 0; }
 }
 
 .dl-head {
@@ -666,4 +699,6 @@ dialog::backdrop {
 @media (prefers-reduced-motion: reduce) {
   .dl-card { transition: none; }
   .dl-card:hover { transform: none; }
+  dialog, dialog::backdrop { transition: none; transform: none; }
+  dialog { transform: none; }
 }
