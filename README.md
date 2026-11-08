@@ -23,7 +23,8 @@ is set that way:
 
 ## Install
 
-The extension is not published to the Chrome Web Store, so you load it unpacked from a release.
+The extension is not published to the Chrome Web Store, so you load it unpacked from a release. The
+landing page offers two routes to the same zip: download it directly, or open the release on GitHub.
 
 1. Download `baton.zip` from the [latest release](https://github.com/sarang-cmd/baton/releases/latest) and unzip it.
 2. Open `chrome://extensions` (`edge://extensions` in Edge, `brave://extensions` in Brave).
@@ -43,6 +44,8 @@ Open the toolbar icon on any arena.ai page.
 | --- | --- | --- |
 | Auto-send | on | The master switch. |
 | Click Keep working first | on | The "Was this task successful?" panel covers the message box, so it is dismissed before typing. |
+| Only act on a fresh limit | on | Ignores banners left over from earlier turns. |
+| Keep working button | built-in | Can be replaced with a selector or a position, see below. |
 | Only when tab is visible | on | Skips background tabs so two tabs cannot both answer the agent. |
 | Skip if you have typed something | on | Your draft always wins. It never overwrites text already in the composer. |
 | Status pill on the page | on | The small indicator in the bottom right corner of the page. |
@@ -61,6 +64,15 @@ The content script looks for this text:
 
 A few details that matter in practice:
 
+- **A banner only counts if it is the newest thing in the conversation.** A limit notice stays in the
+  transcript after the turn it belonged to, and answering it again sends a message nobody asked for.
+  The extension checks that nothing meaningful follows the notice, ignoring the composer bar and
+  other page furniture, and that the agent is not still working.
+- **Nothing new means nothing sent.** The text at the end of the conversation is fingerprinted after
+  each send, with the banner wording stripped out. If that fingerprint has not changed, a banner on
+  screen is history and is left alone.
+- **It confirms the send did something.** After clicking, it watches for the banner to clear or for
+  the conversation to change, and if neither happens within six seconds it holds off for twenty.
 - **It scans text nodes from the bottom of the page upward** and stops at the first match, so a long
   conversation costs a few milliseconds instead of a full document scan.
 - **The "send a message to continue" sentence alone does not trigger it.** The words about the
@@ -77,6 +89,24 @@ A few details that matter in practice:
   contenteditable), dispatches input events, then clicks the send button or presses Enter.
 
 It runs only on `arena.ai`. There is no network code, no analytics, and no remote configuration.
+
+## When the button moves
+
+Arena's "Keep working" control is found by its markup first, then by its label, then by the target you
+picked yourself. If a redesign breaks all of that, open the popup and press **Pick on page**: click the
+button once on the page, and the extension stores its CSS selector plus its position as a share of the
+window. Because the position is a fraction rather than a pixel coordinate, it still lands on the same
+spot after a resize or on a different monitor.
+
+You can also type a selector, or an X and Y percentage, into the same panel. **Use built-in** removes
+the override.
+
+## Update notices
+
+The popup checks the releases feed at most once every six hours and shows a banner when a newer
+version exists, with a direct link to the zip and to the release notes. Nothing is installed without
+you: an extension loaded unpacked cannot update itself, so download the new zip and load it over the
+old folder.
 
 ## Development
 
