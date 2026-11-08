@@ -35,6 +35,7 @@ FIXED = (1980, 1, 1, 0, 0, 0)
 with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
     for path in files:
         info = zipfile.ZipInfo(path.replace(os.sep, "/"), date_time=FIXED)
+        info.compress_type = zipfile.ZIP_DEFLATED
         info.external_attr = (0o644 & 0xFFFF) << 16
         info.create_system = 3
         with open(path, "rb") as fh:
