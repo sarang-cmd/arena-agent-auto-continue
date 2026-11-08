@@ -16,10 +16,10 @@ thinking, or read your conversations.
 
 ## What it looks like
 
-On the left, the popup on an arena.ai tab. On the right, the defaults it ships with and why each one
-is set that way:
+On the left, the pill with its settings open, which is how you reach them on any arena.ai page. On the
+right, the defaults it ships with and why each one is set that way:
 
-![The Baton popup beside the settings table from the landing page](docs/images/popup-and-settings.png)
+![The Baton pill beside the settings table from the landing page](docs/images/pill-and-settings.png)
 
 ## Install
 
@@ -31,14 +31,20 @@ landing page offers two routes to the same zip: download it directly, or open th
 3. Turn on **Developer mode** in the top right.
 4. Choose **Load unpacked** and select the unzipped folder, the one containing `manifest.json`.
 5. Open [arena.ai/agent](https://arena.ai/agent) and start a task. A small pill in the bottom corner
-   shows that it is watching.
+   shows that it is watching. Hover it to see the last action, and click the gear to open settings.
 
 Works in Chrome and other Chromium browsers on desktop. Firefox is not supported yet, since it needs
 a manifest variant and a different extension namespace.
 
 ## Settings
 
-Open the toolbar icon on any arena.ai page.
+Settings live in the pill itself. Hover the pill to expand it, then click the gear in its top right
+corner. The gear swaps the plate to a settings page in place, without opening a window over the page.
+**All settings** opens the same panel as a full page, which is also where the toolbar icon goes. Both
+places read and write the same stored values.
+
+The pill carries the switches, because those are the ones you change while a run is going. The full
+page adds the numbers and the target override.
 
 | Setting | Default | What it does |
 | --- | --- | --- |
@@ -53,7 +59,7 @@ Open the toolbar icon on any arena.ai page.
 | Delay | `1200` ms | Wait after the banner appears, so the composer is ready. |
 | Safety cap | `30` | Pauses after this many consecutive sends until you reset the counter. |
 
-The popup also shows a session counter, and **Reset counter** clears both the counter and a paused
+The pill also shows a session counter, and **Reset counter** clears both the counter and a paused
 state.
 
 ## How the detection works
@@ -93,7 +99,7 @@ It runs only on `arena.ai`. There is no network code, no analytics, and no remot
 ## When the button moves
 
 Arena's "Keep working" control is found by its markup first, then by its label, then by the target you
-picked yourself. If a redesign breaks all of that, open the popup and press **Pick on page**: click the
+picked yourself. If a redesign breaks all of that, open settings and press **Pick on page**: click the
 button once on the page, and the extension stores its CSS selector plus its position as a share of the
 window. Because the position is a fraction rather than a pixel coordinate, it still lands on the same
 spot after a resize or on a different monitor.
@@ -103,15 +109,15 @@ the override.
 
 ## Update notices
 
-The popup checks the releases feed at most once every six hours and shows a banner when a newer
-version exists, with a direct link to the zip and to the release notes. Nothing is installed without
+The settings page checks the releases feed at most once every six hours and shows a banner when a
+newer version exists, with a direct link to the zip and to the release notes. Nothing is installed without
 you: an extension loaded unpacked cannot update itself, so download the new zip and load it over the
 old folder.
 
 ## Development
 
-The extension has no build step and no dependencies. `content.js`, `popup.js` and the manifest are
-loaded directly by the browser.
+The extension has no build step and no dependencies. `content.js`, `background.js`, `ui/panel.js` and
+the manifest are loaded directly by the browser.
 
 ```bash
 git clone https://github.com/sarang-cmd/baton
@@ -127,22 +133,27 @@ bash scripts/build.sh
 
 The tests simulate an arena.ai page in jsdom and check the behaviour that is easy to get wrong:
 one send per banner, no send without the banner, no overwriting a draft, no repeat sends when the
-banner never clears, re-arming for a later limit, flicker tolerance, and the contenteditable path
+banner never clears, re-arming for a later limit, flicker tolerance, the contenteditable path, the
+gear opening settings inside the pill, and a switch in the pill reaching storage
 that has no send button.
 
 ```
-PASS  detects notice and sends exactly once  — sends=1
-PASS  sends the word "continue"  — "continue"
-PASS  silent when no notice is present  — sends=0
-PASS  skips when composer already has text  — sends=0
-PASS  no repeat fires for a notice that never clears  — sends=1 in 9s
-PASS  fires again on a later, separate limit notice  — sends=2 (first=1)
-PASS  ignores the continue line without the tool-call limit line  — sends=0
-PASS  works with a contenteditable composer (Enter path)  — [{"via":"enter","text":"continue"}]
-PASS  contenteditable cleaned up after send  — ""
-PASS  re-render flapping does not cause a second send  — sends=1 (first=1)
+PASS  detects notice and sends exactly once  - sends=1
+PASS  sends the word "continue"  - "continue"
+PASS  silent when no notice is present  - sends=0
+PASS  skips when composer already has text  - sends=0
+PASS  no repeat fires for a notice that never clears  - sends=1 in 9s
+PASS  fires again on a later, separate limit notice  - sends=2 (first=1)
+PASS  clicks Keep working when the task prompt is showing  - keepClicks=1
+PASS  ignores a Keep working button outside the prompt  - stray=0 sends=1
+PASS  ignores a limit banner that is not the latest message  - sends=0
+PASS  uses the saved override selector when one exists  - overrideClicks=1
+PASS  gear opens the settings view inside the pill  - closedFirst=true open=true
+PASS  pill settings are switches only, no popup window  - toggles=6 dialogs=0
+PASS  a switch in the pill saves to storage  - useKeepWorking=false
+PASS  does nothing when auto-send is off  - sends=0
 
-10/10 passed
+26/26 passed
 ```
 
 The screenshots in this README are regenerated with `node scripts/shots.js`, which needs
@@ -152,14 +163,17 @@ The screenshots in this README are regenerated with `node scripts/shots.js`, whi
 
 ```
 manifest.json        Manifest V3, matches arena.ai, storage + activeTab
-content.js           detection, composer insertion, guards, on-page status pill
-popup.html/js        settings UI and session counter
-icons/               toolbar icons
+content.js           detection, composer insertion, guards, on-page pill
+background.js        toolbar button opens settings, relays messages to the tab
+settings.html/js     the settings page
+ui/panel.js          the settings UI, mounted in the pill and on that page
+icons/               toolbar icons, generated by scripts/make-icons.py
 site/                landing page, privacy and terms pages (static, no build)
 test/test.js         jsdom test suite
 scripts/build.sh     packs the extension into dist/
 scripts/shots.js     regenerates docs/images
-scripts/compose-figure.py  builds the combined popup + settings figure
+scripts/make-icons.py      draws the icon at every size, plus the SVG
+scripts/compose-figure.py  builds the combined pill + settings figure
 docs/images/         screenshots used above
 ```
 
