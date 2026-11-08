@@ -1,0 +1,22 @@
+{
+ "request": {
+  "id": "eval-02",
+  "mode": "side-by-side",
+  "modality": "webdev",
+  "modelAId": "model-a",
+  "modelAMessageId": "eval-a",
+  "modelBId": "model-b",
+  "modelBMessageId": "eval-b",
+  "userMessage": {
+   "content": "Synthetic prompt."
+  }
+ },
+ "responses": {
+  "a": {
+   "status": "ready"
+  },
+  "b": {
+   "status": "building"
+  }
+ }
+}

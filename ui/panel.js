@@ -29,7 +29,11 @@
     ['message', 'Message', 'What it types', 'text', 'behaviour'],
     ['delayMs', 'Delay', 'Milliseconds before sending', 'number', 'behaviour'],
     ['maxConsecutive', 'Safety cap', 'Pauses after this many sends', 'number', 'behaviour'],
-    ['notifyOnPause', 'Notify when it pauses', 'A desktop notification at the safety cap', 'switch', 'alerts']
+    ['notifyResponseDone', 'Response complete', 'When the agent finishes a response', 'switch', 'events'],
+    ['notifyQuestionAsked', 'Agent asks a question', 'When it stops and waits for your answer', 'switch', 'events'],
+    ['notifyToolLimit', 'Tool-call limit', 'When the run stops at the limit', 'switch', 'events'],
+    ['includeNotificationText', 'Include text in notification', 'Off: the body is never model output', 'switch', 'events'],
+    ['notifyOnPause', 'Notify when Baton pauses', 'At the safety cap, or after a send that changed nothing', 'switch', 'alerts']
   ];
 
   const CSS = `
@@ -245,8 +249,10 @@
       ? FIELDS.filter(([, , , kind, group]) => kind === 'switch' && group === 'behaviour')
       : FIELDS.filter(([, , , , group]) => group === 'behaviour');
     const alerts = FIELDS.filter(([, , , , group]) => group === 'alerts');
+    const notifications = FIELDS.filter(([, , , , group]) => group === 'events');
     const rows = shown.map((f) => rowFor(...f, compact)).join('');
     const alertRows = alerts.map((f) => rowFor(...f, compact)).join('');
+    const notifyRows = notifications.map((f) => rowFor(...f, compact)).join('');
 
     return `
       <div class="panel" data-compact="${compact}">
@@ -270,9 +276,21 @@
 
         ${compact ? '' : `
         <div class="section">
+          <h3>Notifications</h3>
+          <div class="rows" data-group="events">${notifyRows}</div>
+          <div class="actions">
+            <button class="btn" type="button" id="baton-test-notify">Send a test notification</button>
+          </div>
+          <p class="note" id="baton-events-note">
+            These arrive in your operating system. The body names the event and the thread, never the
+            answer, unless you switch text on above.
+          </p>
+        </div>
+
+        <div class="section">
           <h3>Alerts</h3>
           <div class="rows" data-group="alerts">${alertRows}</div>
-          <p class="note" id="baton-notify-note">Needs the notification permission, which Chrome asks for once.</p>
+          <p class="note" id="baton-notify-note">Baton's own status messages, separate from the three events above.</p>
         </div>`}
 
         ${compact ? `
@@ -444,32 +462,41 @@
     }
 
     /* ------------------------------------------------------- notifications */
-    const note = panel.querySelector('#baton-notify-note');
+    // the notifications permission is granted at install, so this reports state
+    // rather than asking: if it is missing, the user turned it off in Chrome
+    const note = panel.querySelector('#baton-events-note');
+    const testBtnNote = () => note && note.dataset.default;
+    if (note) note.dataset.default = note.textContent.trim();
+
     const refreshNotify = async () => {
       if (!note) return;
-      let granted = false;
+      let granted = true;
       try {
         granted = await new Promise((r) =>
-          chrome.permissions.contains({ permissions: ['notifications'] }, (yes) => r(!!yes && !chrome.runtime.lastError)));
+          chrome.permissions.contains({ permissions: ['notifications'] },
+            (yes) => r(!!yes && !(chrome.runtime && chrome.runtime.lastError))));
       } catch (_) {}
-      note.textContent = granted
-        ? 'A desktop notification when it reaches the safety cap or gives up on a send.'
-        : 'Needs the notification permission. The first time you switch this on, Chrome asks.';
+      if (!granted) {
+        note.textContent = 'Notifications are blocked for this extension. Re-enable them in Chrome, then reload the extension.';
+      } else if (testBtnNote()) {
+        note.textContent = testBtnNote();
+      }
       note.dataset.granted = String(granted);
     };
     refreshNotify();
 
-    const notifyToggle = panel.querySelector('[data-key="notifyOnPause"]');
-    if (notifyToggle) {
-      notifyToggle.addEventListener('change', async () => {
-        if (!notifyToggle.checked) return;
+    const testBtn = panel.querySelector('#baton-test-notify');
+    if (testBtn) {
+      testBtn.addEventListener('click', () => {
+        if (note) note.textContent = 'Test sent. If nothing appeared, notifications are blocked for this extension in Chrome.';
         try {
-          await new Promise((r) =>
-            chrome.permissions.request({ permissions: ['notifications'] }, () => r()));
+          chrome.runtime.sendMessage({ type: 'baton-test-notification' }, () => {
+            void (chrome.runtime && chrome.runtime.lastError);
+          });
         } catch (_) {}
-        refreshNotify();
       });
     }
+
 
     if (typeof unsubscribe === 'function' && compact) {
       // the pill is rebuilt on every page load; there is nothing to tear down

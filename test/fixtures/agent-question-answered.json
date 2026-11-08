@@ -1,0 +1,206 @@
+{
+ "id": "aaaaaaaa-0000-4000-8000-000000000000",
+ "taskId": "agent-runner",
+ "triggerAddress": "agent-runner:aaaaaaaa-0000-4000-8000-000000000000",
+ "messages": [
+  {
+   "id": "msg-00",
+   "metadata": {
+    "manifestNodeId": null,
+    "nodeId": "01a1bb6e-5af0-72d7-81ef-25fdf334c54a",
+    "pending": false,
+    "requiresReview": false,
+    "feedback": {}
+   },
+   "role": "user",
+   "parts": [
+    {
+     "type": "text",
+     "text": "***In two sentences, what is the capital of Australia and why was it chosen?***"
+    }
+   ]
+  },
+  {
+   "id": "msg-01",
+   "metadata": {
+    "timing": {
+     "startedAt": 1794145941906,
+     "completedAt": 1794145943545
+    },
+    "manifestNodeId": null,
+    "nodeId": "01a1bb6e-7992-7695-acaa-b410edd8c71d",
+    "pending": false,
+    "requiresReview": false,
+    "feedback": {
+     "checkIn": "approve"
+    }
+   },
+   "role": "assistant",
+   "parts": [
+    {
+     "type": "step-start"
+    },
+    {
+     "type": "text",
+     "text": "The capital of Australia is Canberra. It was chosen as a compromise between rivals Sydney and Melbourne, with a new capital to be built between them.",
+     "state": "done"
+    }
+   ]
+  },
+  {
+   "id": "msg-02",
+   "metadata": {
+    "manifestNodeId": null,
+    "nodeId": "01a1bb6f-be3a-7223-a96f-812b0426b588",
+    "pending": false,
+    "requiresReview": false,
+    "feedback": {}
+   },
+   "role": "user",
+   "parts": [
+    {
+     "type": "text",
+     "text": "Plan a trip for me. Ask me whatever you need to know before you start."
+    }
+   ]
+  },
+  {
+   "id": "msg-03",
+   "metadata": {
+    "timing": {
+     "startedAt": 1794146025813,
+     "completedAt": 1794146033875
+    },
+    "manifestNodeId": null,
+    "nodeId": "01a1bb6f-c155-7b8a-8dfc-c1923d462e1d",
+    "pending": true,
+    "requiresReview": false,
+    "feedback": {}
+   },
+   "role": "assistant",
+   "parts": [
+    {
+     "type": "step-start"
+    },
+    {
+     "type": "reasoning",
+     "text": "",
+     "state": "done"
+    },
+    {
+     "type": "tool-ask_user",
+     "toolCallId": "tc_JGe4Vu8yePHNRx95M6SGoU",
+     "state": "output-available",
+     "input": {
+      "questions": [
+       {
+        "id": "destination",
+        "question": "Synthetic question?",
+        "options": [
+         {
+          "id": "decided",
+          "label": "Option",
+          "description": "Synthetic option."
+         },
+         {
+          "id": "undecided",
+          "label": "Option",
+          "description": "Synthetic option."
+         }
+        ],
+        "allowCustomResponse": true
+       },
+       {
+        "id": "timing",
+        "question": "Synthetic question?",
+        "options": [
+         {
+          "id": "fixed",
+          "label": "Option",
+          "description": "Synthetic option."
+         },
+         {
+          "id": "flexible",
+          "label": "Option",
+          "description": "Synthetic option."
+         }
+        ],
+        "allowCustomResponse": true
+       },
+       {
+        "id": "travelers_budget",
+        "question": "Synthetic question?",
+        "options": [
+         {
+          "id": "solo",
+          "label": "Option",
+          "description": "Synthetic option."
+         },
+         {
+          "id": "couple",
+          "label": "Option",
+          "description": "Synthetic option."
+         },
+         {
+          "id": "group",
+          "label": "Option",
+          "description": "Synthetic option."
+         }
+        ],
+        "allowCustomResponse": true
+       },
+       {
+        "id": "preferences",
+        "question": "Synthetic question?",
+        "options": [
+         {
+          "id": "relaxed",
+          "label": "Option",
+          "description": "Synthetic option."
+         },
+         {
+          "id": "balanced",
+          "label": "Option",
+          "description": "Synthetic option."
+         },
+         {
+          "id": "packed",
+          "label": "Option",
+          "description": "Synthetic option."
+         }
+        ],
+        "allowCustomResponse": true
+       }
+      ]
+     },
+     "output": {
+      "skipped": false,
+      "answers": [
+       {
+        "questionId": "q1",
+        "selectedOptionId": "o1",
+        "customResponse": null
+       }
+      ]
+     }
+    }
+   ]
+  }
+ ],
+ "pagination": {
+  "hasMore": false,
+  "cursor": null,
+  "limit": 20
+ },
+ "publicAccessToken": null,
+ "lastEventId": "0",
+ "productMode": "chat",
+ "feedbackType": "check_in",
+ "customFeedbackArm": null,
+ "connectorsEnabled": true,
+ "arenaFeedbackEnabled": false,
+ "rubricsEnabled": false,
+ "rubricsArm": null,
+ "onDevice": false,
+ "pinnedModel": null
+}

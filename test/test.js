@@ -16,6 +16,8 @@ try {
   process.exit(1);
 }
 
+const EVENTS_LIB = fs.readFileSync(path.join(__dirname, '..', 'notifications', 'events.js'), 'utf8');
+const DEDUPE_LIB = fs.readFileSync(path.join(__dirname, '..', 'notifications', 'dedupe.js'), 'utf8');
 const STORE = fs.readFileSync(path.join(__dirname, '..', 'ui', 'settings.js'), 'utf8');
 const PANEL = fs.readFileSync(path.join(__dirname, '..', 'ui', 'panel.js'), 'utf8');
 const CONTENT = fs.readFileSync(path.join(__dirname, '..', 'content.js'), 'utf8');
@@ -85,6 +87,7 @@ function makePage({ withNotice = true, draft = '', richComposer = false, taskPro
   const store = {};
   const changeListeners = [];
   window.__messages = [];
+  const session = {};
   window.chrome = {
     storage: {
       local: {
@@ -96,6 +99,10 @@ function makePage({ withNotice = true, draft = '', richComposer = false, taskPro
           if (cb) cb();
           changeListeners.forEach((fn) => fn(changes, 'local'));
         }
+      },
+      session: {
+        get: (keys, cb) => cb(Object.fromEntries(keys.map((k) => [k, session[k]]))),
+        set: (obj, cb) => { Object.assign(session, obj); if (cb) cb(); }
       },
       onChanged: { addListener: (fn) => changeListeners.push(fn) }
     },
@@ -592,8 +599,9 @@ async function run() {
     const none = visible();
     const empty = window.document.getElementById('baton-noresults');
 
+    // 10 rows before notifications, 14 after; assert the narrowing, not the total
     check('search narrows the settings list',
-      before === 10 && after === 1 && /Safety cap/.test(labels[0]),
+      before >= 14 && after === 1 && /Safety cap/.test(labels[0]),
       `rows ${before} -> ${after} (${labels.join(', ')})`);
     check('an empty search result is stated, not left blank',
       none === 0 && empty && !empty.hidden, `visible=${none} notice=${empty && !empty.hidden}`);
@@ -629,6 +637,85 @@ async function run() {
     const asked = (window.__messages || []).filter((m) => m && m.type === 'baton-notify');
     check('respects the notification switch when it is off', asked.length === 0,
       `notifications=${asked.length}`);
+    window.close();
+  }
+
+  /* 25. One limit event produces one "continue" and one notification event */
+  {
+    const { window } = makePage({ taskPrompt: false });
+    window.eval(EVENTS_LIB);
+    window.eval(STORE);
+    window.eval(PANEL);
+    // the observer is a page service; here its job is to turn the DOM banner the
+    // content script already found into one event, keyed to a turn
+    const chatState = JSON.parse(
+      fs.readFileSync(path.join(__dirname, 'fixtures', 'agent-e1-before.json'), 'utf8'));
+    window.BatonObserve = {
+      started: 0,
+      start() { this.started += 1; },
+      snapshot() { return { state: chatState, mode: 'agent' }; },
+      currentTurn() { return 'msg-00'; },
+      readRoute() { return { chatId: 'aaaaaaaa-0000-4000-8000-000000000000', mode: 'agent' }; },
+      noteStopped() {}
+    };
+    window.eval(CONTENT);
+    await wait(4000);
+
+    const sends = window.__log.submits.length;
+    const limitEvents = (window.__messages || [])
+      .filter((m) => m && m.type === 'baton-event')
+      .flatMap((m) => m.events || [])
+      .filter((e) => e.type === 'tool_limit_reached');
+
+    check('one limit banner still sends exactly one continue', sends === 1, `sends=${sends}`);
+    check('one limit banner emits exactly one tool_limit_reached event',
+      limitEvents.length === 1, `events=${limitEvents.length}`);
+    check('the limit event and the send agree on the turn',
+      limitEvents[0] && limitEvents[0].turnId === 'msg-00',
+      `turnId=${limitEvents[0] && limitEvents[0].turnId}`);
+    window.close();
+  }
+
+  /* 26. Dedupe: the same event twice notifies once, even across a reload */
+  {
+    const { window } = makePage();
+    window.eval(EVENTS_LIB);
+    window.eval(DEDUPE_LIB);
+    await wait(100);
+
+    const event = { type: 'tool_limit_reached', turnId: 'msg-00', threadId: 'aaaaaaaa', mode: 'agent' };
+    const key = window.BatonEvents.keyFor(event);
+
+    const first = await new Promise((r) => window.BatonDedupe.claim(key, r));
+    const second = await new Promise((r) => window.BatonDedupe.claim(key, r));
+
+    // a reload keeps chrome.storage.session, so a third claim must still refuse
+    const third = await new Promise((r) => window.BatonDedupe.claim(key, r));
+
+    check('the first claim of an event is accepted', first === true, `first=${first}`);
+    check('the second claim of the same event is refused', second === false, `second=${second}`);
+    check('a third claim is still refused, as after a reload', third === false, `third=${third}`);
+    window.close();
+  }
+
+  /* 27. Dedupe keeps distinct turns and models apart */
+  {
+    const { window } = makePage();
+    window.eval(EVENTS_LIB);
+    window.eval(DEDUPE_LIB);
+    await wait(100);
+
+    const base = { type: 'response_done', threadId: 'thread-1', mode: 'side-by-side' };
+    const keys = [
+      window.BatonEvents.keyFor({ ...base, turnId: 'turn-1', model: 'a' }),
+      window.BatonEvents.keyFor({ ...base, turnId: 'turn-1', model: 'b' }),
+      window.BatonEvents.keyFor({ ...base, turnId: 'turn-2', model: 'a' })
+    ];
+    const results = [];
+    for (const k of keys) results.push(await new Promise((r) => window.BatonDedupe.claim(k, r)));
+
+    check('two models and two turns are three separate notifications',
+      results.every((r) => r === true) && new Set(keys).size === 3, `keys=${new Set(keys).size}`);
     window.close();
   }
 

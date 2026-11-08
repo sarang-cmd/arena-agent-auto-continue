@@ -11,8 +11,9 @@ rm -rf "$DIST"
 mkdir -p "$DIST/$NAME"
 
 cp manifest.json content.js background.js settings.html settings.js LICENSE "$DIST/$NAME/"
-mkdir -p "$DIST/$NAME/ui"
+mkdir -p "$DIST/$NAME/ui" "$DIST/$NAME/notifications"
 cp ui/settings.js ui/panel.js "$DIST/$NAME/ui/"
+cp notifications/events.js notifications/observe.js notifications/dedupe.js notifications/notifier.js notifications/worker.js "$DIST/$NAME/notifications/"
 [ -f README.md ] && cp README.md "$DIST/$NAME/"
 cp -r icons "$DIST/$NAME/"
 
@@ -42,6 +43,35 @@ with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
         info.create_system = 3
         with open(path, "rb") as fh:
             z.writestr(info, fh.read())
+# Fail loudly if the manifest points at a file that did not make it in. A missing
+# content script only shows up as a silently dead feature in the browser.
+import json
+with open(os.path.join(name, "manifest.json")) as fh:
+    manifest = json.load(fh)
+wanted = ["manifest.json"]
+for cs in manifest.get("content_scripts", []):
+    wanted += cs.get("js", [])
+wanted += manifest.get("web_accessible_resources", [])
+for res in manifest.get("web_accessible_resources", []):
+    if isinstance(res, dict):
+        wanted = [w for w in wanted if w is not res] + res.get("resources", [])
+bg = manifest.get("background", {})
+wanted += bg.get("scripts", [])
+icon_default = manifest.get("action", {}).get("default_icon", {})
+if isinstance(icon_default, dict):
+    wanted += list(icon_default.values())
+elif icon_default:
+    wanted.append(icon_default)
+wanted += list(manifest.get("icons", {}).values())
+packed = set(p.replace(os.sep, "/") for p in files)
+missing = []
+for w in wanted:
+    if '*' in w:
+        continue
+    if name + "/" + w.lstrip("/") not in packed:
+        missing.append(w)
+if missing:
+    raise SystemExit("build is missing files the manifest loads: " + ", ".join(sorted(set(missing))))
 print("packed", out, len(files), "files")
 PY_EOF
 

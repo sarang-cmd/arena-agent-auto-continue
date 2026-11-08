@@ -1,0 +1,375 @@
+{
+ "id": "aaaaaaaa-0000-4000-8000-000000000000",
+ "taskId": "agent-runner",
+ "triggerAddress": "agent-runner:aaaaaaaa-0000-4000-8000-000000000000",
+ "messages": [
+  {
+   "id": "msg-00",
+   "metadata": {
+    "manifestNodeId": null,
+    "nodeId": "01a1bb6e-5af0-72d7-81ef-25fdf334c54a",
+    "pending": false,
+    "requiresReview": false,
+    "feedback": {}
+   },
+   "role": "user",
+   "parts": [
+    {
+     "type": "text",
+     "text": "***In two sentences, what is the capital of Australia and why was it chosen?***"
+    }
+   ]
+  },
+  {
+   "id": "msg-01",
+   "metadata": {
+    "timing": {
+     "startedAt": 1794145941906,
+     "completedAt": 1794145943545
+    },
+    "manifestNodeId": null,
+    "nodeId": "01a1bb6e-7992-7695-acaa-b410edd8c71d",
+    "pending": false,
+    "requiresReview": false,
+    "feedback": {
+     "checkIn": "approve"
+    }
+   },
+   "role": "assistant",
+   "parts": [
+    {
+     "type": "step-start"
+    },
+    {
+     "type": "text",
+     "text": "The capital of Australia is Canberra. It was chosen as a compromise between rivals Sydney and Melbourne, with a new capital to be built between them.",
+     "state": "done"
+    }
+   ]
+  },
+  {
+   "id": "msg-02",
+   "metadata": {
+    "manifestNodeId": null,
+    "nodeId": "01a1bb6f-be3a-7223-a96f-812b0426b588",
+    "pending": false,
+    "requiresReview": false,
+    "feedback": {}
+   },
+   "role": "user",
+   "parts": [
+    {
+     "type": "text",
+     "text": "Plan a trip for me. Ask me whatever you need to know before you start."
+    }
+   ]
+  },
+  {
+   "id": "msg-03",
+   "metadata": {
+    "timing": {
+     "startedAt": 1794146025813,
+     "completedAt": 1794146033875
+    },
+    "manifestNodeId": null,
+    "nodeId": "01a1bb6f-c155-7b8a-8dfc-c1923d462e1d",
+    "pending": false,
+    "requiresReview": false,
+    "feedback": {}
+   },
+   "role": "assistant",
+   "parts": [
+    {
+     "type": "step-start"
+    },
+    {
+     "type": "reasoning",
+     "text": "",
+     "state": "done"
+    },
+    {
+     "type": "tool-ask_user",
+     "toolCallId": "tc_JGe4Vu8yePHNRx95M6SGoU",
+     "state": "output-available",
+     "input": {
+      "questions": [
+       {
+        "id": "destination",
+        "question": "Synthetic question?",
+        "options": [
+         {
+          "id": "decided",
+          "label": "Option",
+          "description": "Synthetic option."
+         },
+         {
+          "id": "undecided",
+          "label": "Option",
+          "description": "Synthetic option."
+         }
+        ],
+        "allowCustomResponse": true
+       },
+       {
+        "id": "timing",
+        "question": "Synthetic question?",
+        "options": [
+         {
+          "id": "fixed",
+          "label": "Option",
+          "description": "Synthetic option."
+         },
+         {
+          "id": "flexible",
+          "label": "Option",
+          "description": "Synthetic option."
+         }
+        ],
+        "allowCustomResponse": true
+       },
+       {
+        "id": "travelers_budget",
+        "question": "Synthetic question?",
+        "options": [
+         {
+          "id": "solo",
+          "label": "Option",
+          "description": "Synthetic option."
+         },
+         {
+          "id": "couple",
+          "label": "Option",
+          "description": "Synthetic option."
+         },
+         {
+          "id": "group",
+          "label": "Option",
+          "description": "Synthetic option."
+         }
+        ],
+        "allowCustomResponse": true
+       },
+       {
+        "id": "preferences",
+        "question": "Synthetic question?",
+        "options": [
+         {
+          "id": "relaxed",
+          "label": "Option",
+          "description": "Synthetic option."
+         },
+         {
+          "id": "balanced",
+          "label": "Option",
+          "description": "Synthetic option."
+         },
+         {
+          "id": "packed",
+          "label": "Option",
+          "description": "Synthetic option."
+         }
+        ],
+        "allowCustomResponse": true
+       }
+      ]
+     },
+     "output": {
+      "skipped": false,
+      "answers": []
+     }
+    }
+   ]
+  },
+  {
+   "id": "msg-04",
+   "metadata": {
+    "manifestNodeId": null,
+    "nodeId": "01a1bb70-0f93-7122-8d46-bc010c9cdf52",
+    "pending": false,
+    "requiresReview": false,
+    "feedback": {}
+   },
+   "role": "user",
+   "parts": [
+    {
+     "type": "data-tool-results",
+     "data": [
+      {
+       "requestNodeId": "01a1bb6f-c155-7b8a-8dfc-c1923d462e1d",
+       "tool": "ask_user",
+       "toolCallId": "tc_JGe4Vu8yePHNRx95M6SGoU",
+       "output": {
+        "answers": [
+         {
+          "questionId": "destination",
+          "customResponse": null,
+          "selectedOptionId": "undecided"
+         },
+         {
+          "questionId": "timing",
+          "customResponse": null,
+          "selectedOptionId": "flexible"
+         },
+         {
+          "questionId": "travelers_budget",
+          "customResponse": null,
+          "selectedOptionId": "solo"
+         },
+         {
+          "questionId": "preferences",
+          "customResponse": null,
+          "selectedOptionId": "packed"
+         }
+        ],
+        "skipped": false
+       }
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "msg-05",
+   "metadata": {
+    "timing": {
+     "startedAt": 1794146046083,
+     "completedAt": 1794146053923
+    },
+    "manifestNodeId": null,
+    "nodeId": "01a1bb70-1083-7628-9cca-b1b4a609b496",
+    "pending": true,
+    "requiresReview": false,
+    "feedback": {}
+   },
+   "role": "assistant",
+   "parts": [
+    {
+     "type": "step-start"
+    },
+    {
+     "type": "reasoning",
+     "text": "",
+     "state": "done"
+    },
+    {
+     "type": "text",
+     "text": "I\u2019ll plan an active solo trip and help you choose the destination. A few more details will help me narrow it down.",
+     "state": "done"
+    },
+    {
+     "type": "tool-ask_user",
+     "toolCallId": "tc_6WJSIeNcd1pLmw-20Huv1k",
+     "state": "input-available",
+     "input": {
+      "questions": [
+       {
+        "id": "departure",
+        "question": "Synthetic question?",
+        "options": [
+         {
+          "id": "dresden",
+          "label": "Option",
+          "description": "Synthetic option."
+         },
+         {
+          "id": "other",
+          "label": "Option",
+          "description": "Synthetic option."
+         }
+        ],
+        "allowCustomResponse": true
+       },
+       {
+        "id": "duration_season",
+        "question": "Synthetic question?",
+        "options": [
+         {
+          "id": "weekend",
+          "label": "Option",
+          "description": "Synthetic option."
+         },
+         {
+          "id": "week",
+          "label": "Option",
+          "description": "Synthetic option."
+         },
+         {
+          "id": "two_weeks",
+          "label": "Option",
+          "description": "Synthetic option."
+         }
+        ],
+        "allowCustomResponse": true
+       },
+       {
+        "id": "budget",
+        "question": "Synthetic question?",
+        "options": [
+         {
+          "id": "low",
+          "label": "Option",
+          "description": "Synthetic option."
+         },
+         {
+          "id": "mid",
+          "label": "Option",
+          "description": "Synthetic option."
+         },
+         {
+          "id": "high",
+          "label": "Option",
+          "description": "Synthetic option."
+         },
+         {
+          "id": "premium",
+          "label": "Option",
+          "description": "Synthetic option."
+         }
+        ],
+        "allowCustomResponse": true
+       },
+       {
+        "id": "interests",
+        "question": "Synthetic question?",
+        "options": [
+         {
+          "id": "cities",
+          "label": "Option",
+          "description": "Synthetic option."
+         },
+         {
+          "id": "outdoors",
+          "label": "Option",
+          "description": "Synthetic option."
+         },
+         {
+          "id": "mix",
+          "label": "Option",
+          "description": "Synthetic option."
+         }
+        ],
+        "allowCustomResponse": true
+       }
+      ]
+     }
+    }
+   ]
+  }
+ ],
+ "pagination": {
+  "hasMore": false,
+  "cursor": null,
+  "limit": 20
+ },
+ "publicAccessToken": null,
+ "lastEventId": "0",
+ "productMode": "chat",
+ "feedbackType": "check_in",
+ "customFeedbackArm": null,
+ "connectorsEnabled": true,
+ "arenaFeedbackEnabled": false,
+ "rubricsEnabled": false,
+ "rubricsArm": null,
+ "onDevice": false,
+ "pinnedModel": null
+}

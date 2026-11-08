@@ -30,6 +30,12 @@
     requireFreshNotice: true,
     showIndicator: true,
     notifyOnPause: true,
+    // per-event notifications, all on
+    notifyResponseDone: true,
+    notifyQuestionAsked: true,
+    notifyToolLimit: true,
+    // answer text in a notification, off
+    includeNotificationText: false,
     // User override for the Keep working control: { selector, text, x, y }.
     // x and y are fractions of the viewport, so they survive a resize.
     override: null
@@ -62,6 +68,8 @@
   let lastSentSignature = '';
   let lastSendFingerprint = '';
   let suppressUntil = 0;
+  let notifiedLimitSignature = null;
+  let lastObservedTurnId = null;
   let sending = false;
   let currentSignature = '';
   let tickCount = 0;
@@ -707,6 +715,8 @@
     lastSentSignature = currentSignature;
     setStatus(`sent "${settings.message}" (${consecutive})`);
 
+    reportLimitOutcome(true);
+
     if (consecutive >= settings.maxConsecutive) {
       stopped = true;
       setStatus(`paused at the safety cap of ${consecutive}`);
@@ -715,11 +725,56 @@
     }
 
     const effect = await confirmEffect(lastSentSignature);
-    if (effect) setStatus(`sent "${settings.message}", ${effect}`);
+    if (effect) {
+      setStatus(`sent "${settings.message}", ${effect}`);
+    } else {
+      // the send did not change the page, so the notification should not claim it did
+      reportLimitOutcome(false);
+    }
     return true;
   }
 
   function setStatus(t) { status(t); }
+
+  /**
+   * Turn the banner Baton just found into a notification event, once per banner.
+   * The event layer and the turn id come from the chat-state snapshot the
+   * observer already holds, so nothing is fetched twice and nothing is guessed.
+   */
+  function emitLimitEvent() {
+    const Events = window.BatonEvents;
+    const observe = window.BatonObserve;
+    if (!Events || !observe || !observe.snapshot) return;
+    const { state, mode } = observe.snapshot();
+    const events = Events.fromLimit(state, { mode });
+    if (!events.length) return;
+    lastObservedTurnId = events[0].turnId;
+    try {
+      chrome.runtime.sendMessage({
+        type: 'baton-event',
+        events,
+        context: { threadTitle: threadTitle() }
+      }, () => void (chrome.runtime && chrome.runtime.lastError));
+    } catch (_) {}
+  }
+
+  /**
+   * Tell the worker whether auto-continue answered the banner, so the E3
+   * notification states it. The events themselves were already emitted from
+   * tick(); this only carries the outcome.
+   */
+  function reportLimitOutcome(continued) {
+    try {
+      const route = window.BatonObserve && window.BatonObserve.readRoute();
+      chrome.runtime.sendMessage({
+        type: 'baton-limit-outcome',
+        continued: continued !== false,
+        threadId: (route && route.chatId) || null,
+        turnId: lastObservedTurnId,
+        title: threadTitle()
+      }, () => void (chrome.runtime && chrome.runtime.lastError));
+    } catch (_) {}
+  }
 
   /** A desktop notification, if the user asked for one and Chrome allows it. */
   function notify(title, message) {
@@ -774,6 +829,16 @@
     absentStreak = 0;
     absentSince = 0;
     currentSignature = signatureOf(notice);
+
+    // The tool-call limit is one observation with two consumers: this send path
+    // and the notification. Emitting here keeps a single source of truth, and it
+    // happens before the `armed` and `stopped` guards on purpose: a user who hit
+    // the safety cap still wants to know the run stopped at the limit.
+    if (currentSignature !== notifiedLimitSignature) {
+      notifiedLimitSignature = currentSignature;
+      emitLimitEvent();
+    }
+
     if (!armed) return; // already fired for this occurrence
     if (Date.now() < suppressUntil) return;
 
@@ -1139,6 +1204,12 @@
     );
   }
 
+  /** The thread title as the page shows it, for the notification body. */
+  function threadTitle() {
+    const doc = document.title && document.title !== 'Arena' ? document.title : '';
+    return String(doc || '').replace(/\s*[|\u00b7-]\s*Arena\s*$/i, '').trim();
+  }
+
   /* ---------------------------------------------------------------- wiring */
 
   function loadSettings(cb) {
@@ -1153,6 +1224,14 @@
   }
 
   function start() {
+    // the notification observer polls the same chat state the page polls, and
+    // reads nothing else
+    try {
+      if (window.BatonObserve) window.BatonObserve.start();
+    } catch (_) {
+      /* the notification layer is optional: auto-continue must still work */
+    }
+
     observer = new MutationObserver(() => queueTick(200));
     observer.observe(document.body, { childList: true, subtree: true, characterData: true });
     // Fallback poll: some frameworks update text without mutations we catch.
@@ -1185,6 +1264,11 @@
         if (!msg) return;
         if (msg.type === 'baton-pick') { reply({ ok: startPicker() }); return; }
         if (msg.type === 'baton-reset') { consecutive = 0; stopped = false; suppressUntil = 0; reply({ ok: true }); return; }
+        if (msg.type === 'baton-stopped') {
+          if (window.BatonObserve) window.BatonObserve.noteStopped(msg.ids);
+          reply({ ok: true });
+          return;
+        }
         if (msg.type === 'baton-pick-cancel') { stopPicker(); reply({ ok: true }); return; }
         if (msg.type !== 'baton-status') return;
         reply({
