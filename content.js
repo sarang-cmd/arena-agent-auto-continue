@@ -26,6 +26,7 @@
     maxConsecutive: 30,
     message: 'continue',
     skipIfDraft: true,
+    useKeepWorking: true,
     showIndicator: true
   };
 
@@ -192,6 +193,38 @@
       .sort((a, b) => a.d - b.d)[0].el;
   }
 
+  /** Click "Keep working" and wait for the prompt to clear. */
+  async function dismissTaskPrompt() {
+    const prompt = findTaskPrompt();
+    if (!prompt) return false;
+    const button = findKeepWorkingButton(prompt);
+    if (!button) {
+      status('task prompt found, no Keep working button');
+      return false;
+    }
+    button.click();
+    status('clicked Keep working');
+
+    const started = Date.now();
+    while (Date.now() - started < 5000) {
+      if (!findTaskPrompt()) break;
+      await sleep(120);
+    }
+    await sleep(250); // let the composer re-render before typing into it
+    return true;
+  }
+
+  /** Poll for a usable composer, since it appears after the prompt closes. */
+  async function waitForComposer(maxMs = 5000) {
+    const started = Date.now();
+    while (Date.now() - started < maxMs) {
+      const composer = findComposer();
+      if (composer) return composer;
+      await sleep(120);
+    }
+    return null;
+  }
+
   /** Notice text signature, so one occurrence can only trigger once. */
   function signatureOf(el) {
     const t = (el && el.textContent ? el.textContent : '').replace(/\s+/g, ' ').trim();
@@ -327,9 +360,13 @@
   /* ------------------------------------------------------------------ send */
 
   async function doSend() {
-    const composer = findComposer();
+    if (settings.useKeepWorking && findTaskPrompt()) {
+      await dismissTaskPrompt();
+    }
+
+    const composer = await waitForComposer(findTaskPrompt() ? 8000 : 3000);
     if (!composer) {
-      status('no composer found');
+      status(findTaskPrompt() ? 'task prompt would not close' : 'no composer found');
       return false;
     }
     if (settings.skipIfDraft && hasDraft(composer)) {
