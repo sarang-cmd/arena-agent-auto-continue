@@ -27,7 +27,11 @@
     message: 'continue',
     skipIfDraft: true,
     useKeepWorking: true,
-    showIndicator: true
+    requireFreshNotice: true,
+    showIndicator: true,
+    // User override for the Keep working control: { selector, text, x, y }.
+    // x and y are fractions of the viewport, so they survive a resize.
+    override: null
   };
 
   // The exact notice Arena prints when the per-turn tool budget runs out.
@@ -38,6 +42,14 @@
   const RE_TASK_PROMPT = /was this task successful/i;
   const RE_KEEP_WORKING = /keep working/i;
 
+  // Shape of the control seen in the wild. Kept as CSS so it survives a re-render
+  // even when its position on screen moves, with the text check as a backstop.
+  const KEEP_WORKING_SELECTORS = [
+    'button[type="button"][class*="text-start"][class*="px-4"]',
+    'button[type="button"][class*="hover:bg-surface-tertiary"]',
+    'button[class*="text-start"][class*="py-3"]'
+  ];
+
   let settings = { ...DEFAULTS };
   let armed = true;          // may fire for the current notice
   let lastSendAt = 0;
@@ -47,6 +59,9 @@
   let absentStreak = 0;
   let absentSince = 0;
   let lastSentSignature = '';
+  let lastSendFingerprint = '';
+  let suppressUntil = 0;
+  let sending = false;
   let currentSignature = '';
   let tickCount = 0;
 
@@ -169,16 +184,144 @@
     return found;
   }
 
+  /* ------------------------------------------------------------ transcript */
+
+  /** Nearest scrollable ancestor, which is the conversation pane. */
+  function transcriptContainer(el) {
+    let node = el && el.parentElement;
+    while (node && node !== document.body) {
+      const cs = getComputedStyle(node);
+      const scrolls = /(auto|scroll)/.test(cs.overflowY);
+      if (scrolls && node.scrollHeight > node.clientHeight + 20) return node;
+      node = node.parentElement;
+    }
+    return null;
+  }
+
+  /**
+   * Page furniture that is not conversation content: the composer bar, toolbars,
+   * dialogs and anything pinned to the viewport. These sit after the messages in
+   * the DOM even when nothing new has been said.
+   */
+  function isChrome(el) {
+    if (!el || !el.matches) return false;
+    if (el.matches('form, nav, header, footer, [role="dialog"], [role="toolbar"], [role="search"]')) return true;
+    if (el.querySelector && el.querySelector(
+      'textarea, input[type="text"], [contenteditable="true"], [role="textbox"]')) return true;
+    const cs = getComputedStyle(el);
+    return cs.position === 'fixed' || cs.position === 'sticky';
+  }
+
+  function meaningful(el) {
+    if (!el || isChrome(el)) return false;
+    if (el.nodeType === Node.TEXT_NODE) return (el.nodeValue || '').trim().length > 3;
+    const text = (el.textContent || '').replace(/\s+/g, ' ').trim();
+    if (text.length > 3) return true;
+    return !!el.querySelector && !!el.querySelector('button, [role="button"], svg, img, textarea, [contenteditable="true"]');
+  }
+
+  /**
+   * True when nothing in the conversation follows this element.
+   *
+   * This is the fix for the false positive: a limit banner from an earlier turn
+   * stays in the transcript. It is still "the message on the website", but it is
+   * history, not a request. Only a notice at the live end of the conversation
+   * counts.
+   */
+  function isAtEndOfTranscript(el) {
+    const container = transcriptContainer(el);
+    let node = el;
+    while (node && node !== container && node.parentElement) {
+      let sib = node.nextElementSibling;
+      while (sib) {
+        if (meaningful(sib)) return false;
+        sib = sib.nextElementSibling;
+      }
+      node = node.parentElement;
+    }
+    return true;
+  }
+
+  /** Is the agent visibly still working, so the turn is not really over? */
+  function isAgentBusy() {
+    if (document.querySelector('[aria-busy="true"]')) return true;
+    const tail = transcriptFingerprintText();
+    if (/\b(thinking|working|generating|streaming)\b/i.test(tail)) return true;
+    // Tailwind spinners and typing dots inside the conversation pane
+    const spinner = document.querySelector('.animate-spin, .animate-pulse, [class*="animate-bounce"]');
+    return !!spinner;
+  }
+
+  /** Text at the very end of the conversation, used for fingerprints. */
+  function transcriptFingerprintText() {
+    const containers = [...document.querySelectorAll('main, [role="log"], [class*="overflow-y"]')];
+    const box = containers.map((c) => c.textContent || '').sort((a, b) => b.length - a.length)[0] || document.body.textContent || '';
+    // Strip the banner wording. Adding or removing the notice must not look like
+    // the agent produced something, or the guard against repeat sends breaks.
+    return box
+      .replace(/(The agent )?reached the tool[-\s]?call limit[^.!?]*[.!?]?/gi, ' ')
+      .replace(/Send (a )?message to continue[^.!?]*[.!?]?/gi, ' ')
+      .replace(/\s+/g, ' ')
+      .slice(-400);
+  }
+
+  /** A cheap value that changes whenever the agent produces something new. */
+  function transcriptFingerprint() {
+    const text = transcriptFingerprintText();
+    let hash = 0;
+    for (let i = 0; i < text.length; i++) hash = (hash * 31 + text.charCodeAt(i)) | 0;
+    return text.length + ':' + hash;
+  }
+
+  /* ------------------------------------------------------------- override */
+
+  function overrideCandidates(override) {
+    const out = [];
+    if (!override) return out;
+    if (override.selector) {
+      try {
+        for (const el of document.querySelectorAll(override.selector)) out.push(el);
+      } catch (_) { /* stored selector became invalid */ }
+    }
+    if (override.x != null && override.y != null) {
+      const el = document.elementFromPoint(
+        override.x * window.innerWidth,
+        override.y * window.innerHeight
+      );
+      if (el) out.push((el.closest && el.closest('button, [role="button"], a')) || el);
+    }
+    return out.filter((el) => el && el.isConnected);
+  }
+
+  /** Click the user's chosen target, if they set one. */
+  function clickOverride() {
+    const override = settings.override;
+    for (const el of overrideCandidates(override)) {
+      if (!isVisible(el)) continue;
+      el.click();
+      return override.selector ? 'override selector' : 'override position';
+    }
+    return null;
+  }
+
   /**
    * The "Keep working" control inside that prompt. Chosen by proximity to the
    * prompt, so a "Keep working" button elsewhere on the page is not clicked.
    */
   function findKeepWorkingButton(prompt) {
-    const buttons = [...document.querySelectorAll('button, [role="button"], a')].filter((el) => {
-      if (el.disabled || el.getAttribute('aria-disabled') === 'true') return false;
-      const label = (el.textContent || '').replace(/\s+/g, ' ').trim();
-      return RE_KEEP_WORKING.test(label) && isVisible(el);
-    });
+    const usable = (el) => !el.disabled && el.getAttribute('aria-disabled') !== 'true' && isVisible(el);
+    const labelled = (el) => RE_KEEP_WORKING.test((el.textContent || '').replace(/\s+/g, ' ').trim());
+
+    // 1. the known markup, which is stable across re-renders
+    for (const sel of KEEP_WORKING_SELECTORS) {
+      const el = [...document.querySelectorAll(sel)].find((c) => usable(c) && labelled(c));
+      if (el) return el;
+    }
+
+    // 2. anything labelled Keep working, nearest to the prompt first
+    const buttons = [...document.querySelectorAll('button, [role="button"], a')].filter(
+      (el) => usable(el) && labelled(el)
+    );
     if (!buttons.length) return null;
     if (!prompt) return buttons[0];
 
@@ -197,13 +340,20 @@
   async function dismissTaskPrompt() {
     const prompt = findTaskPrompt();
     if (!prompt) return false;
-    const button = findKeepWorkingButton(prompt);
-    if (!button) {
-      status('task prompt found, no Keep working button');
-      return false;
+    // A target the user set themselves wins, because it exists precisely for the
+    // case where the built-in selector no longer finds anything.
+    const how = clickOverride();
+    if (how) {
+      status(`clicked ${how}`);
+    } else {
+      const button = findKeepWorkingButton(prompt);
+      if (!button) {
+        status('task prompt found, no Keep working button');
+        return false;
+      }
+      button.click();
+      status('clicked Keep working');
     }
-    button.click();
-    status('clicked Keep working');
 
     const started = Date.now();
     while (Date.now() - started < 5000) {
@@ -211,7 +361,27 @@
       await sleep(120);
     }
     await sleep(250); // let the composer re-render before typing into it
-    return true;
+    return !findTaskPrompt();
+  }
+
+  /**
+   * After sending, check that something actually happened. If the notice and the
+   * conversation are both unchanged, the click landed on a finished task, so the
+   * notice is treated as history and left alone.
+   */
+  async function confirmEffect(signature, maxMs = 6000) {
+    const before = transcriptFingerprint();
+    const started = Date.now();
+    while (Date.now() - started < maxMs) {
+      await sleep(250);
+      const still = findLimitNotice();
+      if (!still) return 'cleared';
+      if (transcriptFingerprint() !== before) return 'new content';
+    }
+    suppressUntil = Date.now() + 20000;
+    lastSentSignature = signature;
+    status('no change after sending, holding');
+    return null;
   }
 
   /** Poll for a usable composer, since it appears after the prompt closes. */
@@ -357,15 +527,162 @@
     return false;
   }
 
+  /* ---------------------------------------------------------------- picker */
+
+  /** A CSS path that resolves to one element, preferring the shortest form. */
+  function selectorFor(el) {
+    if (!el || el.nodeType !== Node.ELEMENT_NODE) return '';
+    const unique = (sel) => {
+      try { return document.querySelectorAll(sel).length === 1; } catch (_) { return false; }
+    };
+    const classes = [...(el.classList || [])]
+      .filter((c) => c.length < 40 && !/^[0-9]/.test(c))
+      .slice(0, 2)
+      .map((c) => '.' + CSS.escape(c))
+      .join('');
+    const tag = el.tagName.toLowerCase();
+
+    let sel = tag + classes;
+    if (unique(sel)) return sel;
+
+    // add the parent chain until it resolves to exactly one element
+    const parts = [];
+    let node = el;
+    while (node && node.nodeType === Node.ELEMENT_NODE && node !== document.documentElement) {
+      let part = node.tagName.toLowerCase();
+      const cls = [...(node.classList || [])].filter((c) => c.length < 40).slice(0, 1).map((c) => '.' + CSS.escape(c)).join('');
+      part += cls;
+      const siblings = node.parentElement
+        ? [...node.parentElement.children].filter((s) => s.tagName === node.tagName)
+        : [node];
+      if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(node) + 1})`;
+      parts.unshift(part);
+      const attempt = parts.join(' > ');
+      if (unique(attempt) && attempt.split('>').length >= 2) return attempt;
+      node = node.parentElement;
+    }
+    return parts.join(' > ');
+  }
+
+  let picker = null;
+
+  function stopPicker() {
+    if (!picker) return;
+    picker.box.remove();
+    picker.label.remove();
+    document.removeEventListener('mousemove', picker.onMove, true);
+    document.removeEventListener('click', picker.onClick, true);
+    document.removeEventListener('keydown', picker.onKey, true);
+    picker = null;
+    status('picker closed');
+  }
+
+  function startPicker() {
+    if (picker) return true;
+    const box = document.createElement('div');
+    box.style.cssText =
+      'position:fixed;z-index:2147483646;pointer-events:none;border:2px solid #2a5f63;' +
+      'background:rgba(42,95,99,.12);border-radius:6px;transition:all .06s linear;';
+    const label = document.createElement('div');
+    label.style.cssText =
+      'position:fixed;z-index:2147483647;pointer-events:none;background:#22211e;color:#f4f1ea;' +
+      'font:11px/1.5 ui-monospace,monospace;padding:3px 7px;border-radius:5px;max-width:60ch;' +
+      'overflow:hidden;text-overflow:ellipsis;white-space:nowrap;';
+    document.documentElement.append(box, label);
+
+    const target = (e) => {
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      if (!el || el === box || el === label) return null;
+      return (el.closest && el.closest('button, [role="button"], a')) || el;
+    };
+
+    const onMove = (e) => {
+      const el = target(e);
+      if (!el) return;
+      const r = el.getBoundingClientRect();
+      box.style.left = r.left + 'px';
+      box.style.top = r.top + 'px';
+      box.style.width = r.width + 'px';
+      box.style.height = r.height + 'px';
+      label.style.left = Math.min(r.left, window.innerWidth - 240) + 'px';
+      label.style.top = Math.max(4, r.top - 22) + 'px';
+      label.textContent = (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 40) || el.tagName.toLowerCase();
+    };
+
+    const onClick = (e) => {
+      const el = target(e);
+      if (!el) return;
+      e.preventDefault();
+      e.stopPropagation();
+      const override = {
+        selector: selectorFor(el),
+        text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 60),
+        x: +(e.clientX / window.innerWidth).toFixed(4),
+        y: +(e.clientY / window.innerHeight).toFixed(4),
+        pickedAt: Date.now()
+      };
+      try {
+        chrome.storage.local.set({ settings: { ...settings, override } }, () => {
+          settings.override = override;
+          status('target saved');
+        });
+      } catch (_) {}
+      stopPicker();
+    };
+
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); stopPicker(); }
+    };
+
+    picker = { box, label, onMove, onClick, onKey };
+    document.addEventListener('mousemove', onMove, true);
+    document.addEventListener('click', onClick, true);
+    document.addEventListener('keydown', onKey, true);
+    status('pick the Keep working button');
+    return true;
+  }
+
   /* ------------------------------------------------------------------ send */
 
   async function doSend() {
+    // Single flight. Sending awaits the page, and ticks keep arriving while it
+    // does; without this guard two attempts could click the same control.
+    if (sending) return false;
+    sending = true;
+    armed = false; // one shot per notice, taken up front
+
+    try {
+      return await attemptSend();
+    } finally {
+      sending = false;
+    }
+  }
+
+  async function attemptSend() {
+    // Never act unless the conversation has moved on since the last send. This
+    // is what stops a banner from an earlier turn being answered twice.
+    if (settings.requireFreshNotice && lastSendFingerprint &&
+        transcriptFingerprint() === lastSendFingerprint) {
+      status('notice is from an earlier turn, waiting');
+      armed = false;
+      return false;
+    }
+
     if (settings.useKeepWorking && findTaskPrompt()) {
-      await dismissTaskPrompt();
+      const closed = await dismissTaskPrompt();
+      if (!closed) {
+        // Do not keep clicking the same control: one attempt per banner.
+        armed = false;
+        suppressUntil = Date.now() + 15000;
+        status('task prompt would not close, holding');
+        return false;
+      }
     }
 
     const composer = await waitForComposer(findTaskPrompt() ? 8000 : 3000);
     if (!composer) {
+      armed = false;
+      suppressUntil = Date.now() + 15000;
       status(findTaskPrompt() ? 'task prompt would not close' : 'no composer found');
       return false;
     }
@@ -382,16 +699,20 @@
 
     consecutive += 1;
     lastSendAt = Date.now();
+    lastSendFingerprint = transcriptFingerprint();
     // Capture the signature of the notice we acted on (it may already be gone
     // by now, so it cannot be re-read after the click).
     lastSentSignature = currentSignature;
-    armed = false; // one shot per notice
     setStatus(`sent "${settings.message}" (${consecutive})`);
 
     if (consecutive >= settings.maxConsecutive) {
       stopped = true;
       setStatus(`paused at the safety cap of ${consecutive}`);
+      return true;
     }
+
+    const effect = await confirmEffect(lastSentSignature);
+    if (effect) setStatus(`sent "${settings.message}", ${effect}`);
     return true;
   }
 
@@ -441,6 +762,19 @@
     absentSince = 0;
     currentSignature = signatureOf(notice);
     if (!armed) return; // already fired for this occurrence
+    if (Date.now() < suppressUntil) return;
+
+    if (settings.requireFreshNotice) {
+      // A banner that is not at the live end of the conversation is history.
+      if (!isAtEndOfTranscript(notice)) {
+        status('older banner in history, ignored');
+        return;
+      }
+      if (isAgentBusy()) {
+        status('agent still working, waiting');
+        return;
+      }
+    }
     if (settings.onlyVisibleTab && document.visibilityState === 'hidden') {
       status('paused (tab hidden)');
       return;
@@ -458,44 +792,192 @@
 
   /* ------------------------------------------------------------- indicator */
 
+  /**
+   * A compact plate in the corner that expands on hover or keyboard focus.
+   *
+   * Collapsed it is 104px of dot, count and state. Expanded it opens to a small
+   * panel with the name, what it is doing right now, and the session total. It
+   * is built for the dark console it sits on, not for the light marketing page,
+   * so the surface is warm charcoal rather than stone.
+   */
+  const INDICATOR_CSS = `
+    :host { all: initial; }
+
+    .root {
+      font: 400 11px/1.4 ui-sans-serif, -apple-system, "Segoe UI", Roboto, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      color: #ece9e2;
+      pointer-events: auto;
+    }
+
+    .plate {
+      width: 104px;
+      padding: 7px 10px 8px;
+      border-radius: 9px;
+      background: rgba(26, 25, 23, .93);
+      border: 1px solid rgba(255, 255, 255, .09);
+      box-shadow: 0 1px 0 rgba(255, 255, 255, .05) inset, 0 6px 20px rgba(0, 0, 0, .38);
+      -webkit-backdrop-filter: blur(10px) saturate(120%);
+      backdrop-filter: blur(10px) saturate(120%);
+      opacity: .84;
+      cursor: default;
+      overflow: hidden;
+      transition: width .22s cubic-bezier(.32, .72, 0, 1),
+                  opacity .16s ease,
+                  border-color .16s ease;
+    }
+
+    .root:hover .plate,
+    .plate:focus-visible {
+      width: 226px;
+      opacity: 1;
+      border-color: rgba(255, 255, 255, .16);
+    }
+
+    .plate:focus-visible { outline: 2px solid #7fb3b7; outline-offset: 2px; }
+
+    .row {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      height: 14px;
+    }
+
+    .dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex: 0 0 auto;
+      background: #6f8f92;
+      box-shadow: 0 0 0 3px rgba(127, 179, 183, .13);
+    }
+    .root[data-state="sent"]   .dot { background: #79c3a1; box-shadow: 0 0 0 3px rgba(121, 195, 161, .16); }
+    .root[data-state="paused"] .dot { background: #d3a05c; box-shadow: 0 0 0 3px rgba(211, 160, 92, .16); }
+    .root[data-state="off"]    .dot { background: #7a766e; box-shadow: none; }
+
+    .count {
+      font: 500 11px/1 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-variant-numeric: tabular-nums;
+      color: #f2efe8;
+      flex: 0 0 auto;
+    }
+
+    .state {
+      flex: 1 1 auto;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      color: #a8a49b;
+      letter-spacing: .01em;
+    }
+
+    /* the part that only exists once expanded */
+    .more {
+      height: 0;
+      opacity: 0;
+      transition: height .22s cubic-bezier(.32, .72, 0, 1), opacity .14s ease;
+    }
+    .root:hover .more,
+    .plate:focus-visible .more {
+      height: 74px;
+      opacity: 1;
+      transition-delay: .04s;
+    }
+
+    .name {
+      margin-top: 7px;
+      padding-top: 8px;
+      border-top: 1px solid rgba(255, 255, 255, .09);
+      font: 600 12px/1.2 ui-serif, "Iowan Old Style", Palatino, Georgia, serif;
+      letter-spacing: .005em;
+      color: #f6f3ec;
+    }
+
+    .detail {
+      margin-top: 5px;
+      color: #a8a49b;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .session {
+      margin-top: 5px;
+      color: #8b877e;
+      font-variant-numeric: tabular-nums;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .plate, .more { transition: none; }
+    }
+  `;
+
+  const STATE_LABEL = {
+    watching: 'watching',
+    sent: 'sent',
+    paused: 'paused',
+    off: 'off',
+    busy: 'agent working'
+  };
+
+  function indicatorState() {
+    if (!settings.enabled) return 'off';
+    if (stopped) return 'paused';
+    if (/^sent "|^sent /.test(lastStatus) || /sent .*cleared|new content/.test(lastStatus)) return 'sent';
+    if (/working|waiting/.test(lastStatus)) return 'busy';
+    return 'watching';
+  }
+
   function renderIndicator() {
     if (!settings.showIndicator || !document.body) {
       if (indicator && indicator.host && indicator.host.isConnected) indicator.host.remove();
       indicator = null;
       return;
     }
+
     if (!indicator) {
       const host = document.createElement('div');
       host.style.cssText = 'position:fixed;z-index:2147483000;right:14px;bottom:14px;';
       const root = host.attachShadow({ mode: 'open' });
       root.innerHTML = `
-        <style>
-          .pill{font:500 11px/1.45 ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;
-            background:rgba(17,17,24,.86);color:#e8e8f0;border:1px solid rgba(255,255,255,.14);
-            border-radius:999px;padding:6px 11px;display:flex;gap:7px;align-items:center;
-            box-shadow:0 4px 18px rgba(0,0,0,.32);backdrop-filter:blur(8px);opacity:.72;
-            transition:opacity .15s;max-width:260px;pointer-events:none}
-          .pill:hover{opacity:1}
-          .dot{width:6px;height:6px;border-radius:50%;background:#7c6cff;flex:0 0 auto}
-          .dot.off{background:#6b7280}
-          .dot.bad{background:#f87171}
-          .txt{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-        </style>
-        <div class="pill" part="pill">
-          <span class="dot"></span><span class="txt"></span>
+        <style>${INDICATOR_CSS}</style>
+        <div class="root" data-state="watching">
+          <div class="plate" tabindex="0" role="status" aria-live="polite">
+            <div class="row">
+              <span class="dot" aria-hidden="true"></span>
+              <span class="count">0</span>
+              <span class="state"></span>
+            </div>
+            <div class="more">
+              <div class="name">Baton</div>
+              <div class="detail"></div>
+              <div class="session"></div>
+            </div>
+          </div>
         </div>`;
       document.documentElement.appendChild(host);
       indicator = { host, root };
     }
-    const dot = indicator.root.querySelector('.dot');
-    const txt = indicator.root.querySelector('.txt');
-    const off = !settings.enabled || stopped;
-    dot.className = 'dot' + (stopped ? ' bad' : off ? ' off' : '');
-    const label = !settings.enabled ? 'auto-send off'
-      : stopped ? `paused, ${consecutive} sent`
-      : `watching, ${consecutive} sent`;
-    txt.textContent = label;
-    indicator.host.title = `Baton: ${lastStatus}`;
+
+    const state = indicatorState();
+    const wrap = indicator.root.querySelector('.root');
+    wrap.dataset.state = state;
+
+    indicator.root.querySelector('.count').textContent = String(consecutive);
+    indicator.root.querySelector('.state').textContent =
+      settings.enabled ? STATE_LABEL[state] : 'auto-send off';
+
+    const detail = indicator.root.querySelector('.detail');
+    const session = indicator.root.querySelector('.session');
+    detail.textContent = lastStatus || 'waiting for the limit banner';
+    session.textContent = consecutive === 1
+      ? '1 message sent this session'
+      : `${consecutive} messages sent this session`;
+
+    const plate = indicator.root.querySelector('.plate');
+    plate.setAttribute('aria-label',
+      `Baton. ${settings.enabled ? STATE_LABEL[state] : 'off'}. ${consecutive} sent. ${lastStatus}`);
+    plate.title = '';
   }
 
   /* ---------------------------------------------------------------- wiring */
@@ -541,11 +1023,15 @@
 
     try {
       chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
-        if (!msg || msg.type !== 'baton-status') return;
+        if (!msg) return;
+        if (msg.type === 'baton-pick') { reply({ ok: startPicker() }); return; }
+        if (msg.type === 'baton-pick-cancel') { stopPicker(); reply({ ok: true }); return; }
+        if (msg.type !== 'baton-status') return;
         reply({
           settings, consecutive, stopped, lastStatus,
           hasNotice: !!findLimitNotice(),
-          onAgentPage: onAgentPage()
+          onAgentPage: onAgentPage(),
+          picking: !!picker
         });
       });
     } catch (_) {}
