@@ -1,0 +1,19 @@
+{
+ "request": {
+  "id": "eval-01",
+  "mode": "direct-battle",
+  "modality": "webdev",
+  "modelAId": "model-a",
+  "modelAMessageId": "eval-a",
+  "modelBId": null,
+  "modelBMessageId": null,
+  "userMessage": {
+   "content": "Synthetic prompt."
+  }
+ },
+ "responses": {
+  "a": {
+   "status": "ready"
+  }
+ }
+}

@@ -27,6 +27,11 @@
     requireFreshNotice: true,
     showIndicator: true,
     notifyOnPause: true,
+    // per-event notifications for the Arena events
+    notifyResponseDone: true,
+    notifyQuestionAsked: true,
+    notifyToolLimit: true,
+    includeNotificationText: false,
     override: null
   };
 

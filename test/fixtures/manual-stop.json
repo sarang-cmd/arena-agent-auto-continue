@@ -1,0 +1,11 @@
+{
+ "chatId": "aaaaaaaa-0000-4000-8000-000000000000",
+ "requestedMessageId": "msg-02",
+ "response": {
+  "stoppedMessageIds": [
+   "msg-01",
+   "msg-02"
+  ]
+ },
+ "note": "ids replaced; the response shape is from the capture"
+}

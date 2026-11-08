@@ -1,0 +1,40 @@
+{
+ "id": "aaaaaaaa-0000-4000-8000-000000000000",
+ "taskId": "agent-runner",
+ "triggerAddress": "agent-runner:aaaaaaaa-0000-4000-8000-000000000000",
+ "messages": [
+  {
+   "id": "msg-00",
+   "metadata": {
+    "manifestNodeId": null,
+    "nodeId": "01a1bb6e-5af0-72d7-81ef-25fdf334c54a",
+    "pending": false,
+    "requiresReview": false,
+    "feedback": {}
+   },
+   "role": "user",
+   "parts": [
+    {
+     "type": "text",
+     "text": "***In two sentences, what is the capital of Australia and why was it chosen?***"
+    }
+   ]
+  }
+ ],
+ "pagination": {
+  "hasMore": false,
+  "cursor": null,
+  "limit": 20
+ },
+ "publicAccessToken": null,
+ "lastEventId": "0",
+ "productMode": "chat",
+ "feedbackType": "check_in",
+ "customFeedbackArm": null,
+ "connectorsEnabled": true,
+ "arenaFeedbackEnabled": false,
+ "rubricsEnabled": false,
+ "rubricsArm": null,
+ "onDevice": false,
+ "pinnedModel": null
+}
