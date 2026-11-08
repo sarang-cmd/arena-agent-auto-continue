@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.2.0, 8 November 2026
+
+- Settings moved into the pill. Hover to expand it, then click the gear in its top right corner: the
+  plate swaps to a settings view in place, with no popup window over the page. Escape or the back
+  arrow returns to the status view, and the pill stays open while you work through the switches.
+- The pill shows the six switches, which are the ones you change mid-run. **All settings** opens the
+  same UI as a full page, and so does the toolbar icon. Both read and write the same stored values,
+  so a change in one place shows up in the other.
+- Fixed the collapsed pill's padding. Contents were crowding the left edge; the plate is now inset
+  evenly and the gear no longer shifts the count.
+- Removed every scrollbar in the extension, and the spin buttons on the number fields. The number
+  inputs are `appearance: textfield` with the WebKit inner and outer spin buttons hidden, so Delay
+  and Safety cap read as plain fields inside the inset.
+- One icon, used everywhere. The toolbar chevrons are recoloured onto a stone plate with the gradient
+  kept, drawn once in `scripts/make-icons.py` at 16, 32, 48 and 128 pixels plus an SVG, and used for
+  the toolbar, the settings page, its favicon and the landing page.
+- New `background.js`, which opens the settings page from the toolbar and relays the picker and reset
+  messages to the arena.ai tab. `popup.html` and `popup.js` are gone.
+- Seven new tests, twenty six in total: the gear opens settings inside the pill, the status view is
+  replaced rather than stacked, the pill carries switches and no dialog, the gear reports its state,
+  a switch reaches storage without disturbing the rest, and auto-send off means no send.
+
 ## 1.1.1, 8 November 2026
 
 - Fixed the direct download on the landing page. `*.zip` was gitignored, so the file the button
