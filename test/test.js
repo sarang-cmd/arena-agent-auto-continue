@@ -21,11 +21,12 @@ const CONTENT = fs.readFileSync(path.join(__dirname, '..', 'content.js'), 'utf8'
 const LIMIT_LINE =
   'The agent reached the tool-call limit for this turn. Send a message to continue where it left off.';
 
-function makePage({ withNotice = true, draft = '', richComposer = false, taskPrompt = false } = {}) {
+function makePage({ withNotice = true, draft = '', richComposer = false, taskPrompt = false, afterNotice = '', scrollable = false } = {}) {
   const html = `<!doctype html><html><body>
-    <main id="chat">
+    <main id="chat" ${scrollable ? 'class="scroll" style="overflow-y:auto"' : ''}>
       <div class="msg user">build me a thing</div>
       ${withNotice ? `<div class="notice" id="notice"><span>${LIMIT_LINE}</span></div>` : ''}
+      ${afterNotice}
     </main>
     ${taskPrompt ? `<div id="prompt" role="dialog">
       <p>Was this task successful?</p>
@@ -52,7 +53,8 @@ function makePage({ withNotice = true, draft = '', richComposer = false, taskPro
   });
   const { window } = dom;
 
-  // jsdom has no layout: fake rects so visibility/scoring works.
+  // jsdom has no layout: fake rects so visibility/scoring works, and a scrollable
+  // conversation pane so the transcript-end check has a container to look in.
   window.HTMLElement.prototype.getBoundingClientRect = function () {
     const id = this.id;
     if (id === 'input') return { width: 520, height: 48, top: 820, bottom: 868, left: 20, right: 540, x: 20, y: 820 };
@@ -63,8 +65,12 @@ function makePage({ withNotice = true, draft = '', richComposer = false, taskPro
     if (this.closest && this.closest('#prompt')) {
       return { width: 860, height: 200, top: 720, bottom: 920, left: 50, right: 910, x: 50, y: 720 };
     }
+    if (this.id === 'chat') return { width: 900, height: 600, top: 0, bottom: 600, left: 0, right: 900, x: 0, y: 0 };
     const inChat = this.closest && this.closest('#chat');
-    if (inChat) return { width: 600, height: 40, top: 100, bottom: 140, left: 20, right: 620, x: 20, y: 100 };
+    if (inChat) {
+      const top = 100 + (this.parentElement ? [...this.parentElement.children].indexOf(this) : 0) * 60;
+      return { width: 600, height: 40, top, bottom: top + 40, left: 20, right: 620, x: 20, y: top };
+    }
     if (this === window.document.body || this === window.document.documentElement) {
       return { width: 1200, height: 900, top: 0, bottom: 900, left: 0, right: 1200, x: 0, y: 0 };
     }
@@ -109,6 +115,13 @@ function makePage({ withNotice = true, draft = '', richComposer = false, taskPro
       clearInput();
     }
   });
+
+  // jsdom reports 0 for scrollHeight/clientHeight, which the transcript check uses
+  const chat = window.document.getElementById('chat');
+  if (scrollable) {
+    Object.defineProperty(chat, 'scrollHeight', { value: 1600, configurable: true });
+    Object.defineProperty(chat, 'clientHeight', { value: 600, configurable: true });
+  }
 
   if (taskPrompt) {
     const prompt = window.document.getElementById('prompt');
@@ -198,6 +211,12 @@ async function run() {
     const first = window.__log.submits.length;
     // give the page a clear "turn moved on" window before the next limit
     await wait(2400);
+    // the agent answers, which is what makes the next banner a new request
+    const answer = window.document.createElement('div');
+    answer.className = 'msg agent';
+    answer.textContent = 'Step 15 finished. Starting step 16.';
+    window.document.getElementById('chat').appendChild(answer);
+    await wait(400);
     // second limit later in the same conversation
     const d = window.document.createElement('div');
     d.id = 'notice';
@@ -293,7 +312,8 @@ async function run() {
     const { window } = makePage();
     const stray = window.document.createElement('div');
     stray.innerHTML = '<button id="strayKeep">Keep working</button>';
-    window.document.getElementById('chat').appendChild(stray);
+    // outside the transcript, so it must not disturb the fresh-notice rule
+    window.document.getElementById('composer').appendChild(stray);
     window.__log.strayClicks = 0;
     window.document.getElementById('strayKeep').addEventListener('click', () => {
       window.__log.strayClicks += 1;
