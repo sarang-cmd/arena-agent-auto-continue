@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.2.1, 8 November 2026
+
+- The icon is now the same mark everywhere the product appears. The site's header was still drawing
+  the old teal plate in inline SVG; it uses the plate from the icon set, and the same PNGs back the
+  favicon, the Apple touch icon, the web app manifest and the social card, so a tab, a home screen
+  shortcut and a shared link all show one icon rather than three.
+- `scripts/make-icons.py` writes the 32, 180, 192 and 512 pixel versions alongside the toolbar sizes,
+  so a change to the mark moves every place it is used in one run.
+- Added `site/site.webmanifest` and a 1200 by 630 social card rendered by `scripts/shots.js`.
+- The pill and the settings page no longer overwrite each other. Both write through one small store,
+  `ui/settings.js`, which saves only the keys that changed and re-renders every open surface when
+  storage changes. Before this, flipping a switch in the pill could undo a change made on the page a
+  moment earlier.
+- The settings page gained a search box that filters by setting name or by what it does, and says
+  when nothing matches instead of leaving a blank card.
+- New alert: a desktop notification when it hits the safety cap or steps back after a send that
+  changed nothing. The permission is optional and requested when you turn the switch on.
+- Six more tests, 32 in total.
+
 ## 1.2.0, 8 November 2026
 
 - Settings moved into the pill. Hover to expand it, then click the gear in its top right corner: the
