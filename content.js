@@ -26,12 +26,17 @@
     maxConsecutive: 30,
     message: 'continue',
     skipIfDraft: true,
+    useKeepWorking: true,
     showIndicator: true
   };
 
   // The exact notice Arena prints when the per-turn tool budget runs out.
   const RE_LIMIT = /reached the tool[-\s]?call limit/i;
   const RE_CONTINUE = /send (?:a )?message to continue/i;
+  // After the limit banner, Arena asks whether the task was successful. That
+  // prompt sits on top of the message box, so it has to be dismissed first.
+  const RE_TASK_PROMPT = /was this task successful/i;
+  const RE_KEEP_WORKING = /keep working/i;
 
   let settings = { ...DEFAULTS };
   let armed = true;          // may fire for the current notice
@@ -140,6 +145,84 @@
       return false;
     }, deep ? 6000 : 800);
     return exact || continuationOnly;
+  }
+
+  /** The "Was this task successful?" prompt, which covers the composer. */
+  function findTaskPrompt() {
+    if (!document.body) return null;
+    let found = null;
+    scanTextReverse(document.body, (node) => {
+      const text = node.nodeValue;
+      if (!text || text.length < 8 || !RE_TASK_PROMPT.test(text)) return false;
+      // Climb to the block that actually holds the choices, so proximity
+      // scoring has a meaningful box to work from.
+      let el = node.parentElement;
+      for (let i = 0; i < 6 && el && el.parentElement; i++) {
+        const hasKeep = [...el.querySelectorAll('button, [role="button"], a')]
+          .some((b) => RE_KEEP_WORKING.test((b.textContent || '').trim()));
+        if (hasKeep) break;
+        el = el.parentElement;
+      }
+      found = el;
+      return true;
+    });
+    return found;
+  }
+
+  /**
+   * The "Keep working" control inside that prompt. Chosen by proximity to the
+   * prompt, so a "Keep working" button elsewhere on the page is not clicked.
+   */
+  function findKeepWorkingButton(prompt) {
+    const buttons = [...document.querySelectorAll('button, [role="button"], a')].filter((el) => {
+      if (el.disabled || el.getAttribute('aria-disabled') === 'true') return false;
+      const label = (el.textContent || '').replace(/\s+/g, ' ').trim();
+      return RE_KEEP_WORKING.test(label) && isVisible(el);
+    });
+    if (!buttons.length) return null;
+    if (!prompt) return buttons[0];
+
+    const box = prompt.getBoundingClientRect();
+    const mid = { x: box.left + box.width / 2, y: box.top + box.height / 2 };
+    return buttons
+      .map((el) => {
+        const r = el.getBoundingClientRect();
+        const d = Math.hypot(r.left + r.width / 2 - mid.x, r.top + r.height / 2 - mid.y);
+        return { el, d };
+      })
+      .sort((a, b) => a.d - b.d)[0].el;
+  }
+
+  /** Click "Keep working" and wait for the prompt to clear. */
+  async function dismissTaskPrompt() {
+    const prompt = findTaskPrompt();
+    if (!prompt) return false;
+    const button = findKeepWorkingButton(prompt);
+    if (!button) {
+      status('task prompt found, no Keep working button');
+      return false;
+    }
+    button.click();
+    status('clicked Keep working');
+
+    const started = Date.now();
+    while (Date.now() - started < 5000) {
+      if (!findTaskPrompt()) break;
+      await sleep(120);
+    }
+    await sleep(250); // let the composer re-render before typing into it
+    return true;
+  }
+
+  /** Poll for a usable composer, since it appears after the prompt closes. */
+  async function waitForComposer(maxMs = 5000) {
+    const started = Date.now();
+    while (Date.now() - started < maxMs) {
+      const composer = findComposer();
+      if (composer) return composer;
+      await sleep(120);
+    }
+    return null;
   }
 
   /** Notice text signature, so one occurrence can only trigger once. */
@@ -277,9 +360,13 @@
   /* ------------------------------------------------------------------ send */
 
   async function doSend() {
-    const composer = findComposer();
+    if (settings.useKeepWorking && findTaskPrompt()) {
+      await dismissTaskPrompt();
+    }
+
+    const composer = await waitForComposer(findTaskPrompt() ? 8000 : 3000);
     if (!composer) {
-      status('no composer found');
+      status(findTaskPrompt() ? 'task prompt would not close' : 'no composer found');
       return false;
     }
     if (settings.skipIfDraft && hasDraft(composer)) {
